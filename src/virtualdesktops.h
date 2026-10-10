@@ -469,18 +469,10 @@ Q_SIGNALS:
     void currentChanged(KWin::VirtualDesktop *previousDesktop, KWin::VirtualDesktop *newDesktop, KWin::LogicalOutput *output);
 
     /**
-     * Signal emitted for realtime desktop switching animations.
-     * @param currentDesktop The current virtual desktop
-     * @param offset The current total change in desktop coordinate
-     * Offset x and y are negative if switching Left and Down.
-     * Example: x = 0.6 means 60% of the way to the desktop to the right.
-     * @param output The affected output. If it affects multiple outputs, then a separate signal is emitted for each one.
+     * Realtime desktop animation signals retained for SDK compatibility.
+     * Discrete swipes only emit currentChanged() when a desktop command commits.
      */
     void currentChanging(KWin::VirtualDesktop *currentDesktop, QPointF offset, KWin::LogicalOutput *output);
-
-    /**
-     * Signal emitted when realtime desktop switching animation is cancelled. It applies to all outputs.
-     */
     void currentChangingCancelled();
 
     /**
@@ -538,9 +530,7 @@ private Q_SLOTS:
      */
     void slotDown();
 
-    /* For gestured desktopSwitching
-     * Called when gesture ended, the thing that actually switches the desktop.
-     */
+    /** SDK-compatible release hooks; discrete swipes commit before release. */
     void gestureReleasedY();
     void gestureReleasedX();
 
@@ -599,6 +589,7 @@ private:
     PlasmaVirtualDesktopManagementInterface *m_virtualDesktopManagement = nullptr;
     KSharedConfig::Ptr m_config;
 
+    // Retained in the exported class layout; discrete swipes do not use release actions.
     std::unique_ptr<QAction> m_swipeGestureReleasedY;
     std::unique_ptr<QAction> m_swipeGestureReleasedX;
     QPointF m_currentDesktopOffset = QPointF(0, 0);

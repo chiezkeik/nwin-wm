@@ -24,11 +24,7 @@ namespace KWin
  * How it Works:
  *
  * This effect doesn't change the current desktop, only receives changes from the VirtualDesktopManager.
- * The only visually apparent inputs are desktopChanged() and desktopChanging().
- *
- * When responding to desktopChanging(), the draw position is only affected by what's received from there.
- * After desktopChanging() is done, or without desktopChanging() having been called at all, desktopChanged() is called.
- * The desktopChanged() function configures the m_startPos and m_endPos for the animation, and the duration.
+ * Desktop changes start a spring animation from the current position to the new desktop.
  *
  * m_currentPosition and everything else not labeled "drawCoordinate" uses desktops as a unit.
  * Exmp: 1.2 means the desktop at index 1 shifted over by .2 desktops.
@@ -61,8 +57,6 @@ public:
 
     bool isActive() const;
     void desktopChanged(VirtualDesktop *old, VirtualDesktop *current, EffectWindow *with);
-    void desktopChanging(VirtualDesktop *old, QPointF desktopOffset, EffectWindow *with);
-    void desktopChangingCancelled();
     void windowAdded(EffectWindow *w);
     void windowDeleted(EffectWindow *w);
     void finishedSwitching();
@@ -72,7 +66,6 @@ private:
     bool isTranslated(const EffectWindow *w) const;
     bool willBePainted(const EffectWindow *w) const;
     bool shouldElevate(const EffectWindow *w) const;
-    QPointF moveInsideDesktopGrid(QPointF p);
     QPointF constrainToDrawableRange(QPointF p);
     QPointF forcePositivePosition(QPointF p) const;
     void optimizePath(); // Find the best path to target desktop
@@ -84,19 +77,16 @@ private:
     enum class State {
         Inactive,
         ActiveAnimation,
-        ActiveGesture,
     };
 
     State m_state = State::Inactive;
     SpringMotion m_motionX;
     SpringMotion m_motionY;
 
-    // When the desktop isn't desktopChanging(), these two variables are used to control the animation path.
+    // These two variables control the animation path.
     // They use desktops as a unit.
     QPointF m_startPos;
     QPointF m_endPos;
-
-    QPointF m_gesturePos;
 
     EffectWindow *m_movingWindow = nullptr;
     AnimationClock m_clock;
@@ -151,8 +141,6 @@ public:
 
 private Q_SLOTS:
     void desktopChanged(VirtualDesktop *old, VirtualDesktop *current, EffectWindow *with, LogicalOutput *output);
-    void desktopChanging(VirtualDesktop *old, QPointF desktopOffset, EffectWindow *with, LogicalOutput *output);
-    void desktopChangingCancelled();
     void windowAdded(EffectWindow *w);
     void windowDeleted(EffectWindow *w);
 

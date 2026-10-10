@@ -49,8 +49,6 @@ public:
     bool transitionGestureInProgress() const;
     qreal gridPartialActivationFactor() const;
     bool gridGestureInProgress() const;
-    QPointF desktopOffset() const;
-    Q_INVOKABLE QPointF desktopOffsetForScreen(LogicalOutput *screen) const;
 
     int requestedEffectChainPosition() const override;
     bool borderActivated(ElectricBorder border) override;
@@ -67,7 +65,6 @@ Q_SIGNALS:
     void ignoreMinimizedChanged();
     void filterWindowsChanged();
     void organizedGridChanged();
-    void desktopOffsetChanged(KWin::LogicalOutput *screen);
     void searchTextChanged();
 
 public Q_SLOTS:
@@ -88,7 +85,6 @@ private:
     QTimer *m_shutdownTimer;
     QList<ElectricBorder> m_borderActivate;
     QList<ElectricBorder> m_gridBorderActivate;
-    QHash<LogicalOutput *, QPointF> m_screenDesktopOffsets;
     QString m_searchText;
     bool m_filterWindows = true;
     int m_animationDuration = 400;

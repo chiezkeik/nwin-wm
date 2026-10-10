@@ -236,21 +236,32 @@ public:
     void registerAxisShortcut(Qt::KeyboardModifiers modifiers, PointerAxisDirection axis, QAction *action);
 
     /**
-     * @brief Registers a global touchpad swipe gesture shortcut with the provided @p action.
+     * @brief Registers a global touchpad swipe gesture shortcut.
      *
-     * @param direction The direction for the swipe
-     * @param action The action which gets triggered when the gesture triggers
+     * The action triggers synchronously once the initial direction is recognized
+     * after 16 logical units of movement. Further motion, cancellation, and
+     * release do not change the committed command.
+     *
+     * @param dir The initial direction for the swipe
+     * @param fingerCount The required number of fingers
+     * @param action The command to execute on recognition
+     * @param progressCallback Retained for SDK compatibility; discrete swipes do not report progress
      * @since 5.10
      */
-    void registerTouchpadSwipeShortcut(SwipeDirection dir, uint fingerCount, QAction *onUp, std::function<void(qreal)> progressCallback = {});
+    void registerTouchpadSwipeShortcut(SwipeDirection dir, uint fingerCount, QAction *action, std::function<void(qreal)> progressCallback = {});
 
     void registerTouchpadPinchShortcut(PinchDirection dir, uint fingerCount, QAction *onUp, std::function<void(qreal)> progressCallback = {});
 
     /**
-     * @brief Registers a global touchscreen swipe gesture shortcut with the provided @p action.
+     * @brief Registers a global touchscreen swipe gesture shortcut.
      *
-     * @param direction The direction for the swipe
-     * @param action The action which gets triggered when the gesture triggers
+     * Uses the same immediate command contract as
+     * registerTouchpadSwipeShortcut().
+     *
+     * @param direction The initial direction for the swipe
+     * @param fingerCount The required number of fingers
+     * @param action The command to execute on recognition
+     * @param progressCallback Retained for SDK compatibility; discrete swipes do not report progress
      * @since 5.25
      */
     void registerTouchscreenSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)> progressCallback);
@@ -784,17 +795,14 @@ Q_SIGNALS:
     void desktopChanged(KWin::VirtualDesktop *oldDesktop, KWin::VirtualDesktop *newDesktop, KWin::EffectWindow *with, KWin::LogicalOutput *output);
 
     /**
-     * Signal emitted while desktop is changing for animation.
-     * @param currentDesktop The current desktop until otherwise.
-     * @param offset The current desktop offset.
-     * offset.x() = .6 means 60% of the way to the desktop to the right.
-     * Positive Values means Up and Right.
-     * @param output The affected screen. If it affects multiple screens, then a separate signal is emitted for each one.
+     * Realtime desktop animation signal retained for SDK compatibility.
+     * Discrete swipe commands emit desktopChanged(), not desktopChanging().
      */
     void desktopChanging(KWin::VirtualDesktop *currentDesktop, QPointF offset, KWin::EffectWindow *with, KWin::LogicalOutput *output);
 
     /**
-     * Signal emitted when realtime desktop switching animation is cancelled. It applies to all screens.
+     * Realtime cancellation signal retained for SDK compatibility.
+     * Discrete swipe cancellation does not roll back a committed desktop change.
      */
     void desktopChangingCancelled();
     void desktopAdded(KWin::VirtualDesktop *desktop);

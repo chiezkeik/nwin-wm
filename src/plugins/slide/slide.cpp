@@ -37,10 +37,6 @@ SlideEffect::SlideEffect()
 
     connect(effects, &EffectsHandler::desktopChanged,
             this, &SlideEffect::desktopChanged);
-    connect(effects, &EffectsHandler::desktopChanging,
-            this, &SlideEffect::desktopChanging);
-    connect(effects, QOverload<>::of(&EffectsHandler::desktopChangingCancelled),
-            this, &SlideEffect::desktopChangingCancelled);
     connect(effects, &EffectsHandler::windowAdded,
             this, &SlideEffect::windowAdded);
     connect(effects, &EffectsHandler::windowDeleted,
@@ -153,9 +149,6 @@ void SlideEffectScreen::prePaintScreen(ScreenPrePaintData &data)
         m_paintCtx.position = QPointF(m_motionX.position() / virtualSpaceSize.width(), m_motionY.position() / virtualSpaceSize.height());
         break;
     }
-    case State::ActiveGesture:
-        m_paintCtx.position = m_gesturePos;
-        break;
     }
 
     // Clipping
@@ -473,89 +466,9 @@ void SlideEffectScreen::desktopChanged(VirtualDesktop *old, VirtualDesktop *curr
         previousPos = QPointF(m_motionX.position() / virtualSpaceSize.width(), m_motionY.position() / virtualSpaceSize.height());
         break;
     }
-
-    case State::ActiveGesture:
-        previousPos = m_gesturePos;
-        break;
     }
 
     startAnimation(previousPos, current, with);
-}
-
-void SlideEffect::desktopChanging(VirtualDesktop *old, QPointF desktopOffset, EffectWindow *with, LogicalOutput *output)
-{
-    if (effects->hasActiveFullScreenEffect() && effects->activeFullScreenEffect() != this) {
-        return;
-    }
-    if (!isActive()) {
-        const QList<EffectWindow *> windows = effects->stackingOrder();
-        for (EffectWindow *w : windows) {
-            w->setData(WindowForceBackgroundContrastRole, QVariant(true));
-            w->setData(WindowForceBlurRole, QVariant(true));
-        }
-    }
-
-    auto slideScreenResult = m_slideEffectScreens.tryEmplace(output, this, output);
-    slideScreenResult.iterator->desktopChanging(old, desktopOffset, with);
-    effects->setActiveFullScreenEffect(this);
-}
-
-void SlideEffectScreen::desktopChanging(VirtualDesktop *old, QPointF desktopOffset, EffectWindow *with)
-{
-    if (m_state == State::Inactive) {
-        prepareSwitching();
-    }
-
-    m_state = State::ActiveGesture;
-    m_movingWindow = with;
-
-    // Find desktop position based on animationDelta
-    QPoint gridPos = effects->desktopGridCoords(old);
-    m_gesturePos.setX(gridPos.x() + desktopOffset.x());
-    m_gesturePos.setY(gridPos.y() + desktopOffset.y());
-
-    if (effects->optionRollOverDesktops()) {
-        m_gesturePos = forcePositivePosition(m_gesturePos);
-    } else {
-        m_gesturePos = moveInsideDesktopGrid(m_gesturePos);
-    }
-
-    effects->addRepaint(m_screen->geometry());
-}
-
-void SlideEffect::desktopChangingCancelled()
-{
-    // If the fingers have been lifted and the current desktop didn't change, start animation
-    // to move back to the original virtual desktop.
-    if (effects->activeFullScreenEffect() == this) {
-        for (SlideEffectScreen &slideScreen : m_slideEffectScreens) {
-            slideScreen.desktopChangingCancelled();
-        }
-    }
-}
-
-void SlideEffectScreen::desktopChangingCancelled()
-{
-    if (m_state != State::Inactive) {
-        startAnimation(m_gesturePos, effects->currentDesktop(m_screen), nullptr);
-    }
-}
-
-QPointF SlideEffectScreen::moveInsideDesktopGrid(QPointF p)
-{
-    if (p.x() < 0) {
-        p.setX(0);
-    }
-    if (p.y() < 0) {
-        p.setY(0);
-    }
-    if (p.x() > effects->desktopGridWidth() - 1) {
-        p.setX(effects->desktopGridWidth() - 1);
-    }
-    if (p.y() > effects->desktopGridHeight() - 1) {
-        p.setY(effects->desktopGridHeight() - 1);
-    }
-    return p;
 }
 
 void SlideEffect::windowAdded(EffectWindow *w)

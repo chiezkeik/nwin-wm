@@ -1211,15 +1211,10 @@ public:
             if (m_gestureCancelled) {
                 return true;
             }
-            auto output = workspace()->outputAt(event->pos);
-            const auto physicalSize = output->orientateSize(output->physicalSize());
-            const float xfactor = physicalSize.width() / (float)output->geometry().width();
-            const float yfactor = physicalSize.height() / (float)output->geometry().height();
-
             auto &point = m_touchPoints[event->id];
-            const QPointF dist = event->pos - point;
-            const QPointF delta = QPointF(xfactor * dist.x(), yfactor * dist.y());
-            input()->shortcuts()->processSwipeUpdate(DeviceType::Touchscreen, 5 * delta / m_touchPoints.size());
+            // Recognition uses logical centroid motion, not the old physical-distance progress scale.
+            const QPointF delta = (event->pos - point) / m_touchPoints.size();
+            input()->shortcuts()->processSwipeUpdate(DeviceType::Touchscreen, delta);
             point = event->pos;
             return true;
         }
@@ -3513,10 +3508,10 @@ void InputRedirection::registerAxisShortcut(Qt::KeyboardModifiers modifiers, Poi
 #endif
 }
 
-void InputRedirection::registerTouchpadSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)> cb)
+void InputRedirection::registerTouchpadSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)>)
 {
 #if KWIN_BUILD_GLOBALSHORTCUTS
-    m_shortcuts->registerTouchpadSwipe(direction, fingerCount, action, cb);
+    m_shortcuts->registerTouchpadSwipe(direction, fingerCount, action);
 #endif
 }
 
@@ -3527,17 +3522,17 @@ void InputRedirection::registerTouchpadPinchShortcut(PinchDirection direction, u
 #endif
 }
 
-void InputRedirection::registerTouchscreenSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
+void InputRedirection::registerTouchscreenSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)>)
 {
 #if KWIN_BUILD_GLOBALSHORTCUTS
-    m_shortcuts->registerTouchscreenSwipe(direction, fingerCount, action, progressCallback);
+    m_shortcuts->registerTouchscreenSwipe(direction, fingerCount, action);
 #endif
 }
 
-void InputRedirection::forceRegisterTouchscreenSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
+void InputRedirection::forceRegisterTouchscreenSwipeShortcut(SwipeDirection direction, uint fingerCount, QAction *action, std::function<void(qreal)>)
 {
 #if KWIN_BUILD_GLOBALSHORTCUTS
-    m_shortcuts->forceRegisterTouchscreenSwipe(direction, fingerCount, action, progressCallback);
+    m_shortcuts->forceRegisterTouchscreenSwipe(direction, fingerCount, action);
 #endif
 }
 

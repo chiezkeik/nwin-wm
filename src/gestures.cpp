@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <functional>
+#include <utility>
 
 namespace KWin
 {
@@ -29,24 +30,11 @@ SwipeGesture::SwipeGesture(uint32_t fingerCount)
 
 SwipeGesture::~SwipeGesture() = default;
 
-qreal SwipeGesture::deltaToProgress(const QPointF &delta) const
+bool SwipeGesture::isEnabled() const
 {
-    switch (m_direction) {
-    case SwipeDirection::Up:
-    case SwipeDirection::Down:
-        return std::min(std::abs(delta.y()) / s_minimumDelta, 1.0);
-    case SwipeDirection::Left:
-    case SwipeDirection::Right:
-        return std::min(std::abs(delta.x()) / s_minimumDelta, 1.0);
-    default:
-        Q_UNREACHABLE();
-    }
+    return true;
 }
 
-bool SwipeGesture::minimumDeltaReached(const QPointF &delta) const
-{
-    return deltaToProgress(delta) >= 1.0;
-}
 
 PinchGesture::PinchGesture(uint32_t fingerCount)
     : m_fingerCount(fingerCount)
@@ -88,9 +76,7 @@ void GestureRecognizer::unregisterSwipeGesture(KWin::SwipeGesture *gesture)
         m_destroyConnections.erase(it);
     }
     m_swipeGestures.removeAll(gesture);
-    if (m_activeSwipeGestures.removeOne(gesture)) {
-        Q_EMIT gesture->cancelled();
-    }
+    m_activeSwipeGestures.removeAll(gesture);
 }
 
 void GestureRecognizer::registerPinchGesture(KWin::PinchGesture *gesture)
@@ -114,152 +100,96 @@ void GestureRecognizer::unregisterPinchGesture(KWin::PinchGesture *gesture)
     }
 }
 
-int GestureRecognizer::startSwipeGesture(uint fingerCount, const QPointF &startPos)
+int GestureRecognizer::startSwipeGesture(uint fingerCount)
 {
-    m_currentFingerCount = fingerCount;
-    if (!m_activeSwipeGestures.isEmpty() || !m_activePinchGestures.isEmpty()) {
+    if ((m_swipeState & 7) != 0 || !m_activePinchGestures.isEmpty()) {
         return 0;
     }
-    int count = 0;
+    resetSwipeGesture();
+    m_swipeState |= 1;
     for (SwipeGesture *gesture : std::as_const(m_swipeGestures)) {
-        if (gesture->fingerCount() != fingerCount) {
-            continue;
+        if (gesture->fingerCount() == fingerCount) {
+            m_activeSwipeGestures.append(gesture);
         }
-
-        // Only add gestures who's direction aligns with current swipe axis
-        switch (gesture->direction()) {
-        case SwipeDirection::Up:
-        case SwipeDirection::Down:
-            if (m_currentSwipeAxis == Axis::Horizontal) {
-                continue;
-            }
-            break;
-        case SwipeDirection::Left:
-        case SwipeDirection::Right:
-            if (m_currentSwipeAxis == Axis::Vertical) {
-                continue;
-            }
-            break;
-        case SwipeDirection::Invalid:
-            Q_UNREACHABLE();
-        }
-
-        m_activeSwipeGestures << gesture;
-        count++;
-        Q_EMIT gesture->started();
     }
-    return count;
+    return m_activeSwipeGestures.size();
 }
 
 void GestureRecognizer::updateSwipeGesture(const QPointF &delta)
 {
+    if ((m_swipeState & 7) != 1) {
+        return;
+    }
     m_currentDelta += delta;
-
-    SwipeDirection direction; // Overall direction
-    Axis swipeAxis;
-
-    // Pick an axis for gestures so horizontal ones don't change to vertical ones without lifting fingers
-    if (m_currentSwipeAxis == Axis::None) {
-        if (std::abs(m_currentDelta.x()) >= std::abs(m_currentDelta.y())) {
-            swipeAxis = Axis::Horizontal;
-            direction = m_currentDelta.x() < 0 ? SwipeDirection::Left : SwipeDirection::Right;
-        } else {
-            swipeAxis = Axis::Vertical;
-            direction = m_currentDelta.y() < 0 ? SwipeDirection::Up : SwipeDirection::Down;
-        }
-        if (std::abs(m_currentDelta.x()) >= 5 || std::abs(m_currentDelta.y()) >= 5) {
-            // only lock in a direction if the delta is big enough
-            // to prevent accidentally choosing the wrong direction
-            m_currentSwipeAxis = swipeAxis;
-        }
-    } else {
-        swipeAxis = m_currentSwipeAxis;
+    // Small diagonal noise must not execute a command.
+    if (QPointF::dotProduct(m_currentDelta, m_currentDelta) < 16 * 16) {
+        return;
     }
-
-    // Find the current swipe direction
-    switch (swipeAxis) {
-    case Axis::Vertical:
-        direction = m_currentDelta.y() < 0 ? SwipeDirection::Up : SwipeDirection::Down;
-        break;
-    case Axis::Horizontal:
+    SwipeDirection direction;
+    if (std::abs(m_currentDelta.x()) > std::abs(m_currentDelta.y())) {
         direction = m_currentDelta.x() < 0 ? SwipeDirection::Left : SwipeDirection::Right;
-        break;
-    default:
-        Q_UNREACHABLE();
+    } else {
+        direction = m_currentDelta.y() < 0 ? SwipeDirection::Up : SwipeDirection::Down;
     }
+    m_swipeState = (m_swipeState & ~uint32_t(7)) | (uint32_t(direction) + 1);
 
-    // Eliminate wrong gestures (takes two iterations)
-    for (int i = 0; i < 2; i++) {
-        if (m_activeSwipeGestures.isEmpty()) {
-            startSwipeGesture(m_currentFingerCount);
-        }
-
-        for (auto it = m_activeSwipeGestures.begin(); it != m_activeSwipeGestures.end();) {
-            auto g = static_cast<SwipeGesture *>(*it);
-
-            if (g->direction() != direction) {
-                Q_EMIT g->cancelled();
-                it = m_activeSwipeGestures.erase(it);
-                continue;
+    // Snapshot eligibility before any command changes the state of another binding.
+    // Keep the stroke latched, even if no binding matches this initial direction.
+    m_activeSwipeGestures.removeIf([direction](const QPointer<SwipeGesture> &gesture) {
+        return !gesture || gesture->direction() != direction || !gesture->isEnabled();
+    });
+    auto gestures = std::move(m_activeSwipeGestures);
+    const auto generation = m_swipeState;
+    const QPointer<GestureRecognizer> guard(this);
+    for (const auto &gesture : gestures) {
+        if (gesture && m_swipeGestures.contains(gesture.data())) {
+            Q_EMIT gesture->triggered();
+            // Commands may destroy the recognizer, unregister other bindings, or
+            // end this stroke and start another. Never dispatch stale commands.
+            if (!guard || m_swipeState != generation) {
+                return;
             }
-
-            it++;
         }
     }
+    // Reuse the candidate storage on the next stroke; reentrant strokes returned above.
+    gestures.clear();
+    m_activeSwipeGestures = std::move(gestures);
+}
 
-    // Send progress update
-    for (SwipeGesture *g : std::as_const(m_activeSwipeGestures)) {
-        Q_EMIT g->progress(g->deltaToProgress(m_currentDelta));
-        Q_EMIT g->deltaProgress(m_currentDelta);
-    }
+void GestureRecognizer::resetSwipeGesture()
+{
+    m_swipeState = (m_swipeState + 8) & ~uint32_t(7);
+    m_activeSwipeGestures.clear();
+    m_currentDelta = QPointF();
 }
 
 void GestureRecognizer::cancelActiveGestures()
 {
-    for (auto g : std::as_const(m_activeSwipeGestures)) {
-        Q_EMIT g->cancelled();
+    cancelSwipeGesture();
+    for (auto gesture : std::as_const(m_activePinchGestures)) {
+        Q_EMIT gesture->cancelled();
     }
-    for (auto g : std::as_const(m_activePinchGestures)) {
-        Q_EMIT g->cancelled();
-    }
-    m_activeSwipeGestures.clear();
     m_activePinchGestures.clear();
     m_currentScale = 0;
-    m_currentDelta = QPointF(0, 0);
-    m_currentSwipeAxis = Axis::None;
 }
 
 void GestureRecognizer::cancelSwipeGesture()
 {
-    cancelActiveGestures();
-    m_currentFingerCount = 0;
-    m_currentDelta = QPointF(0, 0);
-    m_currentSwipeAxis = Axis::None;
+    resetSwipeGesture();
 }
 
 void GestureRecognizer::endSwipeGesture()
 {
-    const QPointF delta = m_currentDelta;
-    for (auto g : std::as_const(m_activeSwipeGestures)) {
-        if (static_cast<SwipeGesture *>(g)->minimumDeltaReached(delta)) {
-            Q_EMIT g->triggered();
-        } else {
-            Q_EMIT g->cancelled();
-        }
-    }
-    m_activeSwipeGestures.clear();
-    m_currentFingerCount = 0;
-    m_currentDelta = QPointF(0, 0);
-    m_currentSwipeAxis = Axis::None;
+    resetSwipeGesture();
 }
 
 int GestureRecognizer::startPinchGesture(uint fingerCount)
 {
     m_currentFingerCount = fingerCount;
-    int count = 0;
-    if (!m_activeSwipeGestures.isEmpty() || !m_activePinchGestures.isEmpty()) {
+    if ((m_swipeState & 7) != 0 || !m_activePinchGestures.isEmpty()) {
         return 0;
     }
+    int count = 0;
     for (PinchGesture *gesture : std::as_const(m_pinchGestures)) {
         if (gesture->fingerCount() != fingerCount) {
             continue;
@@ -313,7 +243,6 @@ void GestureRecognizer::cancelPinchGesture()
     cancelActiveGestures();
     m_currentScale = 1;
     m_currentFingerCount = 0;
-    m_currentSwipeAxis = Axis::None;
 }
 
 void GestureRecognizer::endPinchGesture() // because fingers up
@@ -329,7 +258,6 @@ void GestureRecognizer::endPinchGesture() // because fingers up
     m_activePinchGestures.clear();
     m_currentScale = 1;
     m_currentFingerCount = 0;
-    m_currentSwipeAxis = Axis::None;
 }
 
 uint32_t SwipeGesture::fingerCount() const
@@ -362,9 +290,9 @@ void PinchGesture::setDirection(PinchDirection direction)
     m_direction = direction;
 }
 
-int GestureRecognizer::startSwipeGesture(uint fingerCount)
+int GestureRecognizer::startSwipeGesture(uint fingerCount, const QPointF &)
 {
-    return startSwipeGesture(fingerCount, QPointF());
+    return startSwipeGesture(fingerCount);
 }
 
 }

@@ -375,39 +375,30 @@ void TouchInputTest::testGestureDetection()
     return;
 #endif
 
-    bool callbackTriggered = false;
-    const auto callback = [&callbackTriggered](float progress) {
-        callbackTriggered = true;
-        qWarning() << "progress callback!" << progress;
-    };
     QAction action;
-    input()->forceRegisterTouchscreenSwipeShortcut(SwipeDirection::Right, 3, &action, callback);
-
-    // verify that gestures are detected
+    QSignalSpy triggered(&action, &QAction::triggered);
+    input()->forceRegisterTouchscreenSwipeShortcut(SwipeDirection::Left, 3, &action);
 
     quint32 timestamp = 1;
     Test::touchDown(0, QPointF(500, 125), timestamp++);
     Test::touchDown(1, QPointF(500, 125), timestamp++);
     Test::touchDown(2, QPointF(500, 125), timestamp++);
-
     Test::touchMotion(0, QPointF(100, 125), timestamp++);
-    QVERIFY(callbackTriggered);
-
-    // verify that gestures are canceled properly
-    QSignalSpy gestureCancelled(&action, &QAction::triggered);
+    QCOMPARE(triggered.count(), 1); // Command fires before any finger lifts.
+    Test::touchMotion(1, QPointF(100, 125), timestamp++);
+    Test::touchMotion(0, QPointF(900, 125), timestamp++);
+    QCOMPARE(triggered.count(), 1); // Long strokes and reversals do not repeat.
     Test::touchUp(0, timestamp++);
-    QVERIFY(gestureCancelled.wait());
+    QCOMPARE(triggered.count(), 1);
 
     Test::touchUp(1, timestamp++);
     Test::touchUp(2, timestamp++);
-
-    callbackTriggered = false;
 
     // verify that touch points too far apart don't trigger a gesture
     Test::touchDown(0, QPointF(125, 125), timestamp++);
     Test::touchDown(1, QPointF(10000, 125), timestamp++);
     Test::touchDown(2, QPointF(125, 125), timestamp++);
-    QVERIFY(!callbackTriggered);
+    QCOMPARE(triggered.count(), 1);
 
     Test::touchUp(0, timestamp++);
     Test::touchUp(1, timestamp++);
@@ -418,7 +409,7 @@ void TouchInputTest::testGestureDetection()
     timestamp += 1000;
     Test::touchDown(1, QPointF(125, 125), timestamp++);
     Test::touchDown(2, QPointF(125, 125), timestamp++);
-    QVERIFY(!callbackTriggered);
+    QCOMPARE(triggered.count(), 1);
 
     Test::touchUp(0, timestamp++);
     Test::touchUp(1, timestamp++);
@@ -432,7 +423,7 @@ void TouchInputTest::testGestureDetection()
     Test::touchMotion(0, QPointF(100, 125), timestamp++);
     Test::touchMotion(1, QPointF(100, 125), timestamp++);
     Test::touchMotion(2, QPointF(100, 125), timestamp++);
-    QVERIFY(callbackTriggered);
+    QCOMPARE(triggered.count(), 2);
 
     Test::touchUp(0, timestamp++);
     Test::touchUp(1, timestamp++);

@@ -35,7 +35,6 @@ namespace KWin
 {
 
 static bool s_loadingDesktopSettings = false;
-static const double GESTURE_SWITCH_THRESHOLD = .25;
 
 static QString generateDesktopId()
 {
@@ -240,8 +239,6 @@ VirtualDesktopManager::VirtualDesktopManager(QObject *parent)
 #if KWIN_BUILD_X11
     , m_rootInfo(nullptr)
 #endif
-    , m_swipeGestureReleasedY(new QAction(this))
-    , m_swipeGestureReleasedX(new QAction(this))
 {
 }
 
@@ -775,52 +772,19 @@ void VirtualDesktopManager::initShortcuts()
     addAction(QStringLiteral("Switch One Desktop Up"), i18n("Switch One Desktop Up"), QKeySequence(Qt::CTRL | Qt::META | Qt::Key_Up), &VirtualDesktopManager::slotUp);
     addAction(QStringLiteral("Switch One Desktop Down"), i18n("Switch One Desktop Down"), QKeySequence(Qt::CTRL | Qt::META | Qt::Key_Down), &VirtualDesktopManager::slotDown);
 
-    // Gestures
-    // These connections decide which desktop to end on after gesture ends
-    connect(m_swipeGestureReleasedX.get(), &QAction::triggered, this, &VirtualDesktopManager::gestureReleasedX);
-    connect(m_swipeGestureReleasedY.get(), &QAction::triggered, this, &VirtualDesktopManager::gestureReleasedY);
-    const auto emitCurrentChanging = [this]() {
-        if (m_perOutputVirtualDesktops) {
-            LogicalOutput *output = workspace()->activeOutput();
-            Q_EMIT currentChanging(currentDesktop(output), m_currentDesktopOffset, output);
-        } else {
-            const auto outputs = workspace()->outputs();
-            for (LogicalOutput *output : outputs) {
-                Q_EMIT currentChanging(currentDesktop(output), m_currentDesktopOffset, output);
-            }
-        }
-    };
-
-    const auto left = [this, emitCurrentChanging](qreal cb) {
-        if (grid().width() > 1) {
-            m_currentDesktopOffset.setX(cb);
-            emitCurrentChanging();
-        }
-    };
-    const auto right = [this, emitCurrentChanging](qreal cb) {
-        if (grid().width() > 1) {
-            m_currentDesktopOffset.setX(-cb);
-            emitCurrentChanging();
-        }
-    };
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Left, 3, m_swipeGestureReleasedX.get(), left);
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Right, 3, m_swipeGestureReleasedX.get(), right);
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Left, 4, m_swipeGestureReleasedX.get(), left);
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Right, 4, m_swipeGestureReleasedX.get(), right);
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Down, 3, m_swipeGestureReleasedY.get(), [this, emitCurrentChanging](qreal cb) {
-        if (grid().height() > 1) {
-            m_currentDesktopOffset.setY(-cb);
-            emitCurrentChanging();
-        }
-    });
-    input()->registerTouchpadSwipeShortcut(SwipeDirection::Up, 3, m_swipeGestureReleasedY.get(), [this, emitCurrentChanging](qreal cb) {
-        if (grid().height() > 1) {
-            m_currentDesktopOffset.setY(cb);
-            emitCurrentChanging();
-        }
-    });
-    input()->registerTouchscreenSwipeShortcut(SwipeDirection::Left, 3, m_swipeGestureReleasedX.get(), left);
-    input()->registerTouchscreenSwipeShortcut(SwipeDirection::Right, 3, m_swipeGestureReleasedX.get(), right);
+    // Swipes execute the ordinary desktop commands at direction recognition.
+    const auto left = findChild<QAction *>(QStringLiteral("Switch One Desktop to the Right"));
+    const auto right = findChild<QAction *>(QStringLiteral("Switch One Desktop to the Left"));
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Left, 3, left);
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Right, 3, right);
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Left, 4, left);
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Right, 4, right);
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Down, 3,
+                                           findChild<QAction *>(QStringLiteral("Switch One Desktop Up")));
+    input()->registerTouchpadSwipeShortcut(SwipeDirection::Up, 3,
+                                           findChild<QAction *>(QStringLiteral("Switch One Desktop Down")));
+    input()->registerTouchscreenSwipeShortcut(SwipeDirection::Left, 3, left);
+    input()->registerTouchscreenSwipeShortcut(SwipeDirection::Right, 3, right);
 
     // axis events
     input()->registerAxisShortcut(Qt::MetaModifier | Qt::AltModifier, PointerAxisDown,
@@ -831,44 +795,12 @@ void VirtualDesktopManager::initShortcuts()
 
 void VirtualDesktopManager::gestureReleasedY()
 {
-    auto current = currentDesktop();
-    // Note that if desktop wrapping is disabled and there's no desktop above or below,
-    // above() and below() will return the current desktop.
-    VirtualDesktop *target = current;
-    if (m_currentDesktopOffset.y() <= -GESTURE_SWITCH_THRESHOLD) {
-        target = above(current, isNavigationWrappingAround());
-    } else if (m_currentDesktopOffset.y() >= GESTURE_SWITCH_THRESHOLD) {
-        target = below(current, isNavigationWrappingAround());
-    }
-
-    // If the current desktop has not changed, consider that the gesture has been canceled.
-    if (current != target) {
-        setCurrent(target);
-    } else {
-        Q_EMIT currentChangingCancelled();
-    }
-    m_currentDesktopOffset = QPointF(0, 0);
+    // Retained for SDK compatibility. Release cannot repeat or undo a swipe command.
 }
 
 void VirtualDesktopManager::gestureReleasedX()
 {
-    // Note that if desktop wrapping is disabled and there's no desktop to left or right,
-    // toLeft() and toRight() will return the current desktop.
-    VirtualDesktop *current = currentDesktop();
-    VirtualDesktop *target = current;
-    if (m_currentDesktopOffset.x() <= -GESTURE_SWITCH_THRESHOLD) {
-        target = toLeft(current, isNavigationWrappingAround());
-    } else if (m_currentDesktopOffset.x() >= GESTURE_SWITCH_THRESHOLD) {
-        target = toRight(current, isNavigationWrappingAround());
-    }
-
-    // If the current desktop has not changed, consider that the gesture has been canceled.
-    if (current != target) {
-        setCurrent(target);
-    } else {
-        Q_EMIT currentChangingCancelled();
-    }
-    m_currentDesktopOffset = QPointF(0, 0);
+    // Retained for SDK compatibility. Release cannot repeat or undo a swipe command.
 }
 
 void VirtualDesktopManager::initSwitchToShortcuts()

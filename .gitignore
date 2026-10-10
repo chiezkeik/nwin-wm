@@ -28,3 +28,7 @@ CMakeLists.txt.user*
 .cache
 .vscode
 .qmlls.ini
+/packaging/src/
+/packaging/pkg/
+/packaging/*.pkg.tar.*
+/packaging/SHA256SUMS

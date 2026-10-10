@@ -31,8 +31,6 @@ void SwipeGestureHandler::componentComplete()
     m_gesture->setDirection(SwipeDirection(m_direction));
 
     connect(m_gesture.get(), &SwipeGesture::triggered, this, &SwipeGestureHandler::activated);
-    connect(m_gesture.get(), &SwipeGesture::cancelled, this, &SwipeGestureHandler::cancelled);
-    connect(m_gesture.get(), &SwipeGesture::progress, this, &SwipeGestureHandler::setProgress);
 
     switch (m_deviceType) {
     case Device::Touchpad:
@@ -67,19 +65,6 @@ void SwipeGestureHandler::setFingerCount(int fingerCount)
     if (m_fingerCount != fingerCount) {
         m_fingerCount = fingerCount;
         Q_EMIT fingerCountChanged();
-    }
-}
-
-qreal SwipeGestureHandler::progress() const
-{
-    return m_progress;
-}
-
-void SwipeGestureHandler::setProgress(qreal progress)
-{
-    if (m_progress != progress) {
-        m_progress = progress;
-        Q_EMIT progressChanged();
     }
 }
 

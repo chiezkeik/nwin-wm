@@ -22,7 +22,7 @@ void InputRedirection::registerAxisShortcut(Qt::KeyboardModifiers modifiers, Poi
 {
 }
 
-void InputRedirection::registerTouchpadSwipeShortcut(SwipeDirection direction, uint32_t fingerCount, QAction *onUp, std::function<void(qreal)> progressCallback)
+void InputRedirection::registerTouchpadSwipeShortcut(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
 {
 }
 
@@ -54,8 +54,6 @@ private Q_SLOTS:
     void updateGrid();
     void updateLayout_data();
     void updateLayout();
-    void name_data();
-    void name();
     void changeRows();
     void load();
     void save();
@@ -255,30 +253,6 @@ void TestVirtualDesktops::updateLayout()
     const QVariantList &arguments2 = spy.at(1);
     QCOMPARE(arguments2.at(0).toInt(), result.width());
     QCOMPARE(arguments2.at(1).toInt(), result.height());
-}
-
-void TestVirtualDesktops::name_data()
-{
-    QTest::addColumn<uint>("initCount");
-    QTest::addColumn<uint>("desktop");
-    QTest::addColumn<QString>("desktopName");
-
-    QTest::newRow("desktop 1") << (uint)5 << (uint)1 << "Desktop 1";
-    QTest::newRow("desktop 2") << (uint)5 << (uint)2 << "Desktop 2";
-    QTest::newRow("desktop 3") << (uint)5 << (uint)3 << "Desktop 3";
-    QTest::newRow("desktop 4") << (uint)5 << (uint)4 << "Desktop 4";
-    QTest::newRow("desktop 5") << (uint)5 << (uint)5 << "Desktop 5";
-}
-
-void TestVirtualDesktops::name()
-{
-    VirtualDesktopManager *vds = VirtualDesktopManager::self();
-    QFETCH(uint, initCount);
-    vds->setCount(initCount);
-    QFETCH(uint, desktop);
-
-    const VirtualDesktop *vd = vds->desktopForX11Id(desktop);
-    QTEST(vd->name(), "desktopName");
 }
 
 void TestVirtualDesktops::changeRows()

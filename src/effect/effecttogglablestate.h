@@ -117,6 +117,7 @@ public:
     void addTouchscreenSwipeGesture(SwipeDirection direction, uint fingerCount);
 
 private:
+    void addSwipeGesture(SwipeDirection direction, uint fingerCount, bool touchpad);
     EffectTogglableState *const m_state;
 };
 

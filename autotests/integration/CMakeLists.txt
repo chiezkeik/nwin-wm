@@ -196,6 +196,7 @@ integrationTest(NAME testVirtualKeyboardDBus SRCS test_virtualkeyboard_dbus.cpp 
 
 if (KWIN_BUILD_GLOBALSHORTCUTS)
     integrationTest(NAME testGlobalShortcuts SRCS globalshortcuts_test.cpp LIBS XCB::ICCCM KF6::GlobalAccel KF6::I18n XKB::XKB)
+    integrationTest(NAME testDiscreteSwipes SRCS discrete_swipes_test.cpp BUILTIN_EFFECTS)
     integrationTest(NAME testKWinBindings SRCS kwinbindings_test.cpp LIBS KF6::I18n)
 endif()
 if (TARGET K::KPipeWire)

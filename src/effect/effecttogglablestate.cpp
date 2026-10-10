@@ -6,6 +6,9 @@
 
 #include "effect/effecttogglablestate.h"
 #include "effect/effecthandler.h"
+#include "gestures.h"
+#include "globalshortcuts.h"
+#include "input.h"
 
 namespace KWin
 {
@@ -208,16 +211,59 @@ void EffectTogglableGesture::addTouchpadPinchGesture(PinchDirection direction, u
     effects->registerTouchpadPinchShortcut(opposite(direction), fingerCount, m_state->deactivateAction(), m_state->regressCallback());
 }
 
+void EffectTogglableGesture::addSwipeGesture(SwipeDirection direction, uint fingerCount, bool touchpad)
+{
+    class EffectSwipeGesture : public SwipeGesture
+    {
+    public:
+        EffectSwipeGesture(uint fingerCount, EffectTogglableState *state, bool activating)
+            : SwipeGesture(fingerCount)
+            , m_state(state)
+            , m_activating(activating)
+        {
+        }
+
+        bool isEnabled() const override
+        {
+            const auto source = m_activating ? EffectTogglableState::Status::Inactive : EffectTogglableState::Status::Active;
+            return m_state->status() == source
+                && !effects->isScreenLocked()
+                && (!effects->hasActiveFullScreenEffect() || effects->activeFullScreenEffect() == m_state->parent());
+        }
+
+    private:
+        EffectTogglableState *const m_state;
+        const bool m_activating;
+    };
+    for (const bool activating : {true, false}) {
+        auto gesture = new EffectSwipeGesture(fingerCount, m_state, activating);
+        gesture->setParent(this);
+        gesture->setDirection(activating ? direction : opposite(direction));
+        connect(gesture, &SwipeGesture::triggered, m_state, [state = m_state, activating]() {
+            if (activating) {
+                state->activate();
+                Q_EMIT state->activated();
+            } else {
+                state->deactivate();
+                Q_EMIT state->deactivated();
+            }
+        });
+        if (touchpad) {
+            input()->shortcuts()->registerTouchpadSwipe(gesture);
+        } else {
+            input()->shortcuts()->registerTouchscreenSwipe(gesture);
+        }
+    }
+}
+
 void EffectTogglableGesture::addTouchpadSwipeGesture(SwipeDirection direction, uint fingerCount)
 {
-    effects->registerTouchpadSwipeShortcut(direction, fingerCount, m_state->activateAction(), m_state->progressCallback());
-    effects->registerTouchpadSwipeShortcut(opposite(direction), fingerCount, m_state->deactivateAction(), m_state->regressCallback());
+    addSwipeGesture(direction, fingerCount, true);
 }
 
 void EffectTogglableGesture::addTouchscreenSwipeGesture(SwipeDirection direction, uint fingerCount)
 {
-    effects->registerTouchscreenSwipeShortcut(direction, fingerCount, m_state->activateAction(), m_state->progressCallback());
-    effects->registerTouchscreenSwipeShortcut(opposite(direction), fingerCount, m_state->deactivateAction(), m_state->regressCallback());
+    addSwipeGesture(direction, fingerCount, false);
 }
 
 EffectTogglableTouchBorder::EffectTogglableTouchBorder(EffectTogglableState *state)

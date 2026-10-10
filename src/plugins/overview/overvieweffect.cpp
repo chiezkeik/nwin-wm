@@ -105,27 +105,6 @@ OverviewEffect::OverviewEffect()
     connect(m_gridState, &EffectTogglableState::inProgressChanged, this, &OverviewEffect::gridGestureInProgressChanged);
     connect(m_gridState, &EffectTogglableState::partialActivationFactorChanged, this, &OverviewEffect::gridPartialActivationFactorChanged);
 
-    connect(effects, &EffectsHandler::desktopChanging, this, [this](VirtualDesktop *old, QPointF desktopOffset, EffectWindow *, LogicalOutput *output) {
-        m_screenDesktopOffsets.insertOrAssign(output, desktopOffset);
-        Q_EMIT desktopOffsetChanged(output);
-    });
-    connect(effects, &EffectsHandler::desktopChanged, this, [this](KWin::VirtualDesktop *, KWin::VirtualDesktop *, EffectWindow *, KWin::LogicalOutput *output) {
-        m_screenDesktopOffsets.insertOrAssign(output, QPointF(0, 0));
-        Q_EMIT desktopOffsetChanged(output);
-    });
-    connect(effects, &EffectsHandler::desktopChangingCancelled, this, [this]() {
-        m_screenDesktopOffsets.clear();
-        const auto screens = effects->screens();
-
-        for (LogicalOutput *output : screens) {
-            Q_EMIT desktopOffsetChanged(output);
-        }
-    });
-    connect(effects, &EffectsHandler::screenRemoved, this, [this](KWin::LogicalOutput *output) {
-        m_screenDesktopOffsets.remove(output);
-        Q_EMIT desktopOffsetChanged(output);
-    });
-
     m_shutdownTimer->setSingleShot(true);
     connect(m_shutdownTimer, &QTimer::timeout, this, [this]() {
         if (m_overviewState->status() == EffectTogglableState::Status::Inactive) {
@@ -262,11 +241,6 @@ qreal OverviewEffect::gridPartialActivationFactor() const
 bool OverviewEffect::gridGestureInProgress() const
 {
     return m_gridState->inProgress();
-}
-
-QPointF OverviewEffect::desktopOffsetForScreen(LogicalOutput *screen) const
-{
-    return m_screenDesktopOffsets.value(screen, QPointF(0, 0));
 }
 
 bool OverviewEffect::ignoreMinimized() const

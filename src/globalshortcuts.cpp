@@ -33,14 +33,10 @@ GlobalShortcut::GlobalShortcut(Shortcut &&sc, QAction *action)
     : m_shortcut(sc)
     , m_action(action)
 {
-    if (auto swipeGesture = std::get_if<RealtimeFeedbackSwipeShortcut>(&sc)) {
+    if (auto swipeGesture = std::get_if<SwipeShortcut>(&sc)) {
         m_swipeGesture = std::make_unique<SwipeGesture>(swipeGesture->fingerCount);
         m_swipeGesture->setDirection(swipeGesture->direction);
-        QObject::connect(m_swipeGesture.get(), &SwipeGesture::triggered, m_action, &QAction::trigger, Qt::QueuedConnection);
-        QObject::connect(m_swipeGesture.get(), &SwipeGesture::cancelled, m_action, &QAction::trigger, Qt::QueuedConnection);
-        if (swipeGesture->progressCallback) {
-            QObject::connect(m_swipeGesture.get(), &SwipeGesture::progress, m_swipeGesture.get(), swipeGesture->progressCallback);
-        }
+        QObject::connect(m_swipeGesture.get(), &SwipeGesture::triggered, m_action, &QAction::trigger);
     } else if (auto pinchGesture = std::get_if<RealtimeFeedbackPinchShortcut>(&sc)) {
         m_pinchGesture = std::make_unique<PinchGesture>(pinchGesture->fingerCount);
         m_pinchGesture->setDirection(pinchGesture->direction);
@@ -122,7 +118,7 @@ void GlobalShortcutsManager::objectDeleted(QObject *object)
 bool GlobalShortcutsManager::add(GlobalShortcut sc, DeviceType device)
 {
     const auto &recognizer = device == DeviceType::Touchpad ? m_touchpadGestureRecognizer : m_touchscreenGestureRecognizer;
-    if (std::holds_alternative<RealtimeFeedbackSwipeShortcut>(sc.shortcut())) {
+    if (std::holds_alternative<SwipeShortcut>(sc.shortcut())) {
         recognizer->registerSwipeGesture(sc.swipeGesture());
     } else if (std::holds_alternative<RealtimeFeedbackPinchShortcut>(sc.shortcut())) {
         recognizer->registerPinchGesture(sc.pinchGesture());
@@ -142,9 +138,9 @@ void GlobalShortcutsManager::registerAxisShortcut(QAction *action, Qt::KeyboardM
     add(GlobalShortcut(PointerAxisShortcut{modifiers, axis}, action));
 }
 
-void GlobalShortcutsManager::registerTouchpadSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
+void GlobalShortcutsManager::registerTouchpadSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action)
 {
-    add(GlobalShortcut(RealtimeFeedbackSwipeShortcut{DeviceType::Touchpad, direction, progressCallback, fingerCount}, action), DeviceType::Touchpad);
+    add(GlobalShortcut(SwipeShortcut{DeviceType::Touchpad, direction, fingerCount}, action), DeviceType::Touchpad);
 }
 
 void GlobalShortcutsManager::registerTouchpadSwipe(SwipeGesture *swipeGesture)
@@ -162,9 +158,9 @@ void GlobalShortcutsManager::registerTouchpadPinch(PinchGesture *pinchGesture)
     m_touchpadGestureRecognizer->registerPinchGesture(pinchGesture);
 }
 
-void GlobalShortcutsManager::registerTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
+void GlobalShortcutsManager::registerTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action)
 {
-    add(GlobalShortcut(RealtimeFeedbackSwipeShortcut{DeviceType::Touchscreen, direction, progressCallback, fingerCount}, action), DeviceType::Touchscreen);
+    add(GlobalShortcut(SwipeShortcut{DeviceType::Touchscreen, direction, fingerCount}, action), DeviceType::Touchscreen);
 }
 
 void GlobalShortcutsManager::registerTouchscreenSwipe(SwipeGesture *swipeGesture)
@@ -172,9 +168,9 @@ void GlobalShortcutsManager::registerTouchscreenSwipe(SwipeGesture *swipeGesture
     m_touchscreenGestureRecognizer->registerSwipeGesture(swipeGesture);
 }
 
-void GlobalShortcutsManager::forceRegisterTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback)
+void GlobalShortcutsManager::forceRegisterTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action)
 {
-    GlobalShortcut shortcut{RealtimeFeedbackSwipeShortcut{DeviceType::Touchscreen, direction, progressCallback, fingerCount}, action};
+    GlobalShortcut shortcut{SwipeShortcut{DeviceType::Touchscreen, direction, fingerCount}, action};
     const auto it = std::find_if(m_shortcuts.begin(), m_shortcuts.end(), [&shortcut](const auto &s) {
         return shortcut.shortcut() == s.shortcut();
     });
@@ -308,7 +304,6 @@ void GlobalShortcutsManager::processSwipeEnd(DeviceType device)
     } else {
         m_touchscreenGestureRecognizer->endSwipeGesture();
     }
-    // TODO: cancel on Wayland Seat if one triggered
 }
 
 void GlobalShortcutsManager::processPinchStart(uint fingerCount)

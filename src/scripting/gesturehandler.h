@@ -53,14 +53,6 @@ class SwipeGestureHandler : public QObject, public QQmlParserStatus
     Q_PROPERTY(int fingerCount READ fingerCount WRITE setFingerCount NOTIFY fingerCountChanged)
 
     /*!
-     * \qmlproperty real SwipeGestureHandler::progress
-     *
-     * This property specifies the progress of the swipe gesture. The progress ranges from
-     * 0.0 to 1.0.
-     */
-    Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
-
-    /*!
      * \qmlproperty enumeration SwipeGestureHandler::deviceType
      * \qmlenumeratorsfrom KWin::SwipeGestureHandler::Device
      *
@@ -112,9 +104,6 @@ public:
     int fingerCount() const;
     void setFingerCount(int fingerCount);
 
-    qreal progress() const;
-    void setProgress(qreal progress);
-
     Device deviceType() const;
     void setDeviceType(Device device);
 
@@ -122,19 +111,12 @@ Q_SIGNALS:
     /*!
      * \qmlsignal SwipeGestureHandler::activated()
      *
-     * This signal is emitted when the swipe gesture is triggered, i.e. the progress() reaches 1.0.
+     * Emitted synchronously once the initial direction is recognized after
+     * 16 logical units of movement. Further motion, cancellation, and release
+     * cannot undo or repeat the command; lift before starting another swipe.
      */
     void activated();
 
-    /*!
-     * \qmlsignal SwipeGestureHandler::cancelled()
-     *
-     * This signal is emitted when the swipe gesture is cancelled. A swipe gesture can be cancelled
-     * if the user lifts their fingers or moves the fingers in a different direction, etc.
-     */
-    void cancelled();
-
-    void progressChanged();
     void directionChanged();
     void fingerCountChanged();
     void deviceTypeChanged();
@@ -143,7 +125,6 @@ private:
     std::unique_ptr<SwipeGesture> m_gesture;
     Direction m_direction = Direction::Invalid;
     Device m_deviceType = Device::Touchpad;
-    qreal m_progress = 0;
     int m_fingerCount = 3;
 };
 

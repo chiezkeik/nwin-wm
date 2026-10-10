@@ -69,13 +69,13 @@ public:
      */
     void registerAxisShortcut(QAction *action, Qt::KeyboardModifiers modifiers, PointerAxisDirection axis);
 
-    void registerTouchpadSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback = {});
+    void registerTouchpadSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action);
     void registerTouchpadSwipe(SwipeGesture *swipeGesture);
     void registerTouchpadPinch(PinchDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback = {});
     void registerTouchpadPinch(PinchGesture *pinchGesture);
-    void registerTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback = {});
+    void registerTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action);
     void registerTouchscreenSwipe(SwipeGesture *swipeGesture);
-    void forceRegisterTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action, std::function<void(qreal)> progressCallback = {});
+    void forceRegisterTouchscreenSwipe(SwipeDirection direction, uint32_t fingerCount, QAction *action);
 
     /**
      * @brief Processes a key event to decide whether a shortcut needs to be triggered.
@@ -155,11 +155,10 @@ struct PointerAxisShortcut
         return axisModifiers == rhs.axisModifiers && axisDirection == rhs.axisDirection;
     }
 };
-struct RealtimeFeedbackSwipeShortcut
+struct SwipeShortcut
 {
     DeviceType device;
     SwipeDirection direction;
-    std::function<void(qreal)> progressCallback;
     uint fingerCount;
 
     template<typename T>
@@ -181,7 +180,7 @@ struct RealtimeFeedbackPinchShortcut
     }
 };
 
-using Shortcut = std::variant<KeyboardShortcut, PointerButtonShortcut, PointerAxisShortcut, RealtimeFeedbackSwipeShortcut, RealtimeFeedbackPinchShortcut>;
+using Shortcut = std::variant<KeyboardShortcut, PointerButtonShortcut, PointerAxisShortcut, SwipeShortcut, RealtimeFeedbackPinchShortcut>;
 
 class GlobalShortcut
 {

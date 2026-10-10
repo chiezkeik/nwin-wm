@@ -1,4 +1,53 @@
-# KWin
+# KWin with command-only swipe gestures
+
+This is an unofficial fork of [KDE KWin](https://github.com/KDE/kwin), based on **v6.7.5**, with a focused patch for immediate, one-shot swipe commands. The repository is named `nwin-wm`, but the compositor, package, SDK, configuration files and D-Bus interfaces retain their standard **KWin** identities.
+
+## Gesture behavior
+
+- A swipe recognizes its initial dominant direction after 16 logical units of movement. Small diagonal noise is ignored; equal horizontal and vertical movement selects the vertical direction.
+- A matching command executes immediately, before finger lift. Further movement, reversal or cancellation cannot repeat or undo it.
+- Eligible bindings are captured before dispatch. Opening Overview cannot also open the desktop grid in the same stroke; use another swipe.
+- Touchscreen swipes use the logical movement of the contacts' centroid.
+- Swipe progress callbacks are not invoked. Pinch gestures, touch-border feedback, keyboard shortcuts and ordinary transition animations keep their upstream behavior.
+
+## Install the binary package
+
+The [latest release](https://github.com/chiezkeik/nwin-wm/releases/latest) contains **one patched `kwin` package**, not a renamed Plasma distribution.
+
+The published binary is for **Arch Linux x86_64, Plasma 6.7.5, Qt 6.11.2 and libstdc++ 16.2.1 or newer**. Its dependencies enforce the Plasma and Qt versions used for this build. It is not a package for other distributions or arbitrary Plasma versions; rebuild against the matching upstream KWin release when upgrading.
+
+Download `kwin-6.7.5-1.3-x86_64.pkg.tar.zst` and `SHA256SUMS` from the release, then:
+
+```sh
+sha256sum -c SHA256SUMS
+sudo pacman -U ./kwin-6.7.5-1.3-x86_64.pkg.tar.zst
+```
+
+Log out and select the normal **Plasma (Wayland)** session. Keep the stock Plasma clients and addons; no other patched packages or new session entries are needed. An official KWin upgrade can replace this patch. To return to the distribution packages, use `sudo pacman -Syu kwin`.
+
+The earlier seven-package native NWin release is obsolete and is retained only as historical material. Do not mix those packages with this release; this package targets a stock Plasma installation.
+
+## Build the package
+
+[`packaging/PKGBUILD`](packaging/PKGBUILD) downloads the upstream v6.7.5 tag and applies only [`discrete-swipes.patch`](packaging/discrete-swipes.patch). The patch includes the gesture and compositor integration regressions.
+
+```sh
+git clone https://github.com/chiezkeik/nwin-wm.git
+cd nwin-wm/packaging
+CMAKE_BUILD_PARALLEL_LEVEL=4 makepkg -s
+```
+
+`check()` runs the gesture and virtual-desktop unit suites plus the touch-input and discrete-swipe compositor integration suites.
+
+## Release changes: 6.7.5-1.3
+
+- Replaced the renamed compositor/client bundle with directly cloned upstream KWin and one gesture patch.
+- Preserved the stock exported KWin SDK symbols and the affected exported class layouts.
+- Verified the patched compositor with unmodified Plasma, Cube and Spectacle in an isolated virtual-output Wayland session.
+
+Report fork-specific bugs to [this repository](https://github.com/chiezkeik/nwin-wm/issues), not the upstream KDE bug tracker.
+
+## Upstream KWin
 
 KWin is an easy to use, but flexible, compositor for Wayland on Linux. Its primary usage is in conjunction with a Desktop Shell (e.g. KDE Plasma Desktop). KWin is designed to go out of the way; users should not notice that they use a window manager at all. Nevertheless KWin provides a steep learning curve for advanced features, which are available, if they do not conflict with the primary mission. KWin does not have a dedicated targeted user group, but follows the targeted user group of the Desktop Shell using KWin as it's window manager.
 

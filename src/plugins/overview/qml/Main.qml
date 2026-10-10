@@ -33,7 +33,6 @@ FocusScope {
 
     property bool verticalDesktopBar: KWinComponents.Workspace.desktopGridHeight >= bar.desktopCount && KWinComponents.Workspace.desktopGridHeight != 1
     property QtObject currentDesktop: KWinComponents.SceneView.currentDesktop
-    property point targetScreenDesktopOffset: effect.desktopOffsetForScreen(targetScreen);
 
     // The values of overviewVal and gridVal might not be 0 on startup,
     // but we always want to animate from 0 to those values. So, we initially
@@ -484,20 +483,10 @@ FocusScope {
                 property int gridSize: Math.max(rows, columns)
                 property real row: (index - column) / columns
                 property real column: index % columns
-                // deltaX and deltaY are used to move all the desktops together to 1:1 animate the
-                // switching between different desktops
-                property real deltaX: (!current ? targetScreenDesktopOffset.x :
-                                       column == 0 ? Math.max(0, targetScreenDesktopOffset.x) :
-                                       column == columns - 1 ? Math.min(0, targetScreenDesktopOffset.x) :
-                                           targetScreenDesktopOffset.x)
-                property real deltaY: (!current ? targetScreenDesktopOffset.y :
-                                       row == 0 ? Math.max(0, targetScreenDesktopOffset.y) :
-                                       row == rows - 1 ? Math.min(0, targetScreenDesktopOffset.y) :
-                                           targetScreenDesktopOffset.y)
                 // deltaColumn and deltaRows are the difference between the column/row of this desktop
                 // compared to the column/row of the active one
-                property real deltaColumn: column - allDesktopHeaps.currentBackgroundItem.column - deltaX
-                property real deltaRow: row - allDesktopHeaps.currentBackgroundItem.row - deltaY
+                property real deltaColumn: column - allDesktopHeaps.currentBackgroundItem.column
+                property real deltaRow: row - allDesktopHeaps.currentBackgroundItem.row
 
                 onDeltaColumnChanged: heap.layout.updateCellsMapping()
                 onDeltaRowChanged: heap.layout.updateCellsMapping()
@@ -846,16 +835,5 @@ FocusScope {
         // interacting with it, e.g. by adding desktops
         container.verticalDesktopBar = container.verticalDesktopBar
         organized = true
-    }
-
-    Connections {
-        target: effect
-        onDesktopOffsetChanged: (screen) => {
-            if (screen !== container.targetScreen) {
-                return;
-            }
-
-            container.targetScreenDesktopOffset = effect.desktopOffsetForScreen(screen);
-        }
     }
 }

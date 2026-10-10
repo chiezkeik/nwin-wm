@@ -15,6 +15,7 @@
 #include <QMap>
 #include <QObject>
 #include <QPointF>
+#include <QPointer>
 
 namespace KWin
 {
@@ -31,13 +32,11 @@ protected:
 
 Q_SIGNALS:
     /**
-     * Matching of a gesture started and this Gesture might match.
-     * On further evaluation either the signal @ref triggered or
-     * @ref cancelled will get emitted.
+     * Matching of a pinch gesture started.
      */
     void started();
     /**
-     * Gesture matching ended and this Gesture matched.
+     * This gesture matched. Swipes trigger immediately on direction recognition.
      */
     void triggered();
     /**
@@ -51,8 +50,6 @@ class SwipeGesture : public Gesture
     Q_OBJECT
 
 public:
-    static constexpr double s_minimumDelta = 200;
-
     explicit SwipeGesture(uint32_t fingerCount);
     ~SwipeGesture() override;
 
@@ -61,20 +58,11 @@ public:
     SwipeDirection direction() const;
     void setDirection(SwipeDirection direction);
 
-    qreal deltaToProgress(const QPointF &delta) const;
-    bool minimumDeltaReached(const QPointF &delta) const;
-
-Q_SIGNALS:
     /**
-     * The progress of the gesture if a minimumDelta is set.
-     * The progress is reported in [0.0,1.0]
+     * Evaluated for all matching bindings at recognition, before any command is triggered.
+     * Implementations must not change gesture registration or recognition state.
      */
-    void progress(qreal);
-
-    /**
-     * The progress in actual pixel distance traveled by the fingers
-     */
-    void deltaProgress(const QPointF &delta);
+    virtual bool isEnabled() const;
 
 private:
     const uint32_t m_fingerCount;
@@ -140,22 +128,20 @@ public:
 
 private:
     void cancelActiveGestures();
-    enum class Axis {
-        Horizontal,
-        Vertical,
-        None,
-    };
+    void resetSwipeGesture();
     int startSwipeGesture(uint fingerCount, const QPointF &startPos);
     QList<SwipeGesture *> m_swipeGestures;
     QList<PinchGesture *> m_pinchGestures;
-    QList<SwipeGesture *> m_activeSwipeGestures;
+    QList<QPointer<SwipeGesture>> m_activeSwipeGestures;
     QList<PinchGesture *> m_activePinchGestures;
     QMap<Gesture *, QMetaObject::Connection> m_destroyConnections;
 
     QPointF m_currentDelta = QPointF(0, 0);
     qreal m_currentScale = 1; // For Pinch Gesture recognition
     uint m_currentFingerCount = 0;
-    Axis m_currentSwipeAxis = Axis::None;
+    // Keep the stock recognizer layout: the former axis word also stores the
+    // stroke generation. Low three bits: idle (0), recognizing (1), or direction + 1.
+    uint32_t m_swipeState = 0;
 };
 
 }
