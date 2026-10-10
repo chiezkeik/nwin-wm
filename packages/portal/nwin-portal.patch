@@ -1,0 +1,3188 @@
+diff --git a/.kde-ci.yml b/.kde-ci.yml
+index 84fc2a9..1156f31 100644
+--- a/.kde-ci.yml
++++ b/.kde-ci.yml
+@@ -41,4 +41,4 @@ Options:
+   cppcheck-arguments:
+     - '--enable=warning,style,performance'
+     - '--suppress-xml=cppcheck-suppressions.xml'
+-    - '--library=xdg-desktop-portal-kde-cppcheck.xml'
++    - '--library=nwin-desktop-portal-cppcheck.xml'
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fbd3882..f2dc585 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -4,7 +4,7 @@ set(CMAKE_C_STANDARD 99)
+ 
+ set(PROJECT_VERSION "6.7.5")
+ 
+-project(xdg-desktop-portal-kde VERSION ${PROJECT_VERSION})
++project(nwin-desktop-portal VERSION ${PROJECT_VERSION})
+ 
+ set(PROJECT_DEP_VERSION "6.7.0")
+ set(QT_MIN_VERSION "6.10.0")
+diff --git a/Messages.sh b/Messages.sh
+index 5add95f..8232728 100644
+--- a/Messages.sh
++++ b/Messages.sh
+@@ -1,4 +1,4 @@
+ #! /usr/bin/env bash
+ $EXTRACTRC `find . -name "*.ui" -o -name "*.rc"` >> rc.cpp
+-$XGETTEXT `find . -name "*.cpp" -o -name "*.qml"` -o $podir/xdg-desktop-portal-kde.pot
++$XGETTEXT `find . -name "*.cpp" -o -name "*.qml"` -o $podir/nwin-desktop-portal.pot
+ rm -f rc.cpp
+diff --git a/README.md b/README.md
+index 3d7ef6d..6c5b70b 100644
+--- a/README.md
++++ b/README.md
+@@ -1,9 +1,9 @@
+-# xdg-desktop-portal-kde
++# nwin-desktop-portal
+ 
+ A backend implementation for [xdg-desktop-portal](http://github.com/flatpak/xdg-desktop-portal)
+ that is using Qt/KF6.
+ 
+-## Building xdg-desktop-portal-kde
++## Building nwin-desktop-portal
+ 
+ ### Dependencies:
+  - xdg-desktop-portal (runtime dependency)
+@@ -18,6 +18,6 @@ $ make -j5
+ $ make install
+ ```
+ 
+-## Testing xdg-desktop-portal-kde
++## Testing nwin-desktop-portal
+ 
+ The repository [xdg-portal-test-kde](https://invent.kde.org/libraries/xdg-portal-test-kde) contains a simple test application.
+diff --git a/autotests/colorschemetest.py b/autotests/colorschemetest.py
+index 491245f..64b634b 100755
+--- a/autotests/colorschemetest.py
++++ b/autotests/colorschemetest.py
+@@ -18,7 +18,7 @@ from typing import Final
+ from gi.repository import Gio, GLib
+ 
+ CMAKE_RUNTIME_OUTPUT_DIRECTORY: Final = os.environ.get("CMAKE_RUNTIME_OUTPUT_DIRECTORY", "/usr/libexec")
+-PORTAL_SERVICE_NAME: Final = "org.freedesktop.impl.portal.desktop.kde"
++PORTAL_SERVICE_NAME: Final = "org.freedesktop.impl.portal.desktop.nwin"
+ GROUP: Final = "org.freedesktop.appearance"
+ KEYS: Final = ("accent-color", "color-scheme")
+ EXPECTED_SIGNATURES: Final = ("(ddd)", "u")
+@@ -48,7 +48,7 @@ class OrgFreeDesktopAppearanceTests(unittest.TestCase):
+         if not portal_launched:
+             debug_environ = os.environ.copy()
+             debug_environ["QT_LOGGING_RULES"] = "*.debug=true"
+-            cls.portal_process = subprocess.Popen([os.path.join(CMAKE_RUNTIME_OUTPUT_DIRECTORY, "xdg-desktop-portal-kde")], env=debug_environ, stdout=sys.stderr, stderr=sys.stderr)
++            cls.portal_process = subprocess.Popen([os.path.join(CMAKE_RUNTIME_OUTPUT_DIRECTORY, "nwin-desktop-portal")], env=debug_environ, stdout=sys.stderr, stderr=sys.stderr)
+             for _ in range(10):
+                 if name_has_owner(session_bus, PORTAL_SERVICE_NAME):
+                     portal_launched = True
+diff --git a/data/CMakeLists.txt b/data/CMakeLists.txt
+index b21f9a3..77f36b5 100644
+--- a/data/CMakeLists.txt
++++ b/data/CMakeLists.txt
+@@ -1,9 +1,10 @@
+-configure_file(org.freedesktop.impl.portal.desktop.kde.desktop.in org.freedesktop.impl.portal.desktop.kde.desktop @ONLY)
+-configure_file(org.freedesktop.impl.portal.desktop.kde.cmake.in org.freedesktop.impl.portal.desktop.kde.service @ONLY)
++configure_file(org.freedesktop.impl.portal.desktop.nwin.desktop.in org.freedesktop.impl.portal.desktop.nwin.desktop @ONLY)
++configure_file(org.freedesktop.impl.portal.desktop.nwin.cmake.in org.freedesktop.impl.portal.desktop.nwin.service @ONLY)
+ 
+-install(FILES kde.portal DESTINATION ${KDE_INSTALL_DATADIR}/xdg-desktop-portal/portals)
+-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.kde.service DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR})
+-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.kde.desktop DESTINATION ${KDE_INSTALL_APPDIR})
++install(FILES nwin.portal DESTINATION ${KDE_INSTALL_DATADIR}/xdg-desktop-portal/portals)
++install(FILES nwin-portals.conf DESTINATION ${KDE_INSTALL_DATADIR}/xdg-desktop-portal)
++install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.nwin.service DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR})
++install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.nwin.desktop DESTINATION ${KDE_INSTALL_APPDIR})
+ 
+-ecm_install_configured_files(INPUT plasma-xdg-desktop-portal-kde.service.in @ONLY
++ecm_install_configured_files(INPUT plasma-nwin-desktop-portal.service.in @ONLY
+             DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR})
+diff --git a/data/nwin-portals.conf b/data/nwin-portals.conf
+new file mode 100644
+index 0000000..8cbc53a
+--- /dev/null
++++ b/data/nwin-portals.conf
+@@ -0,0 +1,2 @@
++[preferred]
++default=nwin
+diff --git a/data/kde.portal b/data/nwin.portal
+similarity index 92%
+rename from data/kde.portal
+rename to data/nwin.portal
+index d817edd..668e214 100644
+--- a/data/kde.portal
++++ b/data/nwin.portal
+@@ -1,4 +1,4 @@
+ [portal]
+-DBusName=org.freedesktop.impl.portal.desktop.kde
++DBusName=org.freedesktop.impl.portal.desktop.nwin
+ Interfaces=org.freedesktop.impl.portal.Access;org.freedesktop.impl.portal.Account;org.freedesktop.impl.portal.AppChooser;org.freedesktop.impl.portal.Background;org.freedesktop.impl.portal.Email;org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.Inhibit;org.freedesktop.impl.portal.Print;org.freedesktop.impl.portal.ScreenCast;org.freedesktop.impl.portal.Screenshot;org.freedesktop.impl.portal.RemoteDesktop;org.freedesktop.impl.portal.Settings;org.freedesktop.impl.portal.DynamicLauncher;org.freedesktop.impl.portal.GlobalShortcuts;org.freedesktop.impl.portal.InputCapture;org.freedesktop.impl.portal.Clipboard;org.freedesktop.impl.portal.Wallpaper;org.freedesktop.impl.portal.Usb
+-UseIn=KDE
++UseIn=NWin
+diff --git a/data/org.freedesktop.impl.portal.desktop.kde.cmake.in b/data/org.freedesktop.impl.portal.desktop.kde.cmake.in
+deleted file mode 100644
+index 3d9f192..0000000
+--- a/data/org.freedesktop.impl.portal.desktop.kde.cmake.in
++++ /dev/null
+@@ -1,4 +0,0 @@
+-[D-BUS Service]
+-Name=org.freedesktop.impl.portal.desktop.kde
+-Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/xdg-desktop-portal-kde
+-SystemdService=plasma-xdg-desktop-portal-kde.service
+diff --git a/data/org.freedesktop.impl.portal.desktop.nwin.cmake.in b/data/org.freedesktop.impl.portal.desktop.nwin.cmake.in
+new file mode 100644
+index 0000000..80d7e7c
+--- /dev/null
++++ b/data/org.freedesktop.impl.portal.desktop.nwin.cmake.in
+@@ -0,0 +1,4 @@
++[D-BUS Service]
++Name=org.freedesktop.impl.portal.desktop.nwin
++Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/nwin-desktop-portal
++SystemdService=plasma-nwin-desktop-portal.service
+diff --git a/data/org.freedesktop.impl.portal.desktop.kde.desktop.in b/data/org.freedesktop.impl.portal.desktop.nwin.desktop.in
+similarity index 89%
+rename from data/org.freedesktop.impl.portal.desktop.kde.desktop.in
+rename to data/org.freedesktop.impl.portal.desktop.nwin.desktop.in
+index 7423272..e99dda8 100644
+--- a/data/org.freedesktop.impl.portal.desktop.kde.desktop.in
++++ b/data/org.freedesktop.impl.portal.desktop.nwin.desktop.in
+@@ -47,8 +47,8 @@ Name[tr]=Portal
+ Name[uk]=Портал
+ Name[zh_CN]=系统门户
+ Name[zh_TW]=Portal
+-Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/xdg-desktop-portal-kde
++Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/nwin-desktop-portal
+ X-KDE-Wayland-Interfaces=org_kde_kwin_fake_input,org_kde_plasma_window_management,zkde_screencast_unstable_v1
+-X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
++X-KDE-DBUS-Restricted-Interfaces=org.kde.NWin.ScreenShot2
+ NoDisplay=true
+ Icon=kde
+diff --git a/data/plasma-xdg-desktop-portal-kde.service.in b/data/plasma-nwin-desktop-portal.service.in
+similarity index 62%
+rename from data/plasma-xdg-desktop-portal-kde.service.in
+rename to data/plasma-nwin-desktop-portal.service.in
+index 09e03da..222c548 100644
+--- a/data/plasma-xdg-desktop-portal-kde.service.in
++++ b/data/plasma-nwin-desktop-portal.service.in
+@@ -4,8 +4,8 @@ PartOf=graphical-session.target
+ After=plasma-core.target
+ 
+ [Service]
+-ExecStart=@CMAKE_INSTALL_FULL_LIBEXECDIR@/xdg-desktop-portal-kde
+-BusName=org.freedesktop.impl.portal.desktop.kde
++ExecStart=@CMAKE_INSTALL_FULL_LIBEXECDIR@/nwin-desktop-portal
++BusName=org.freedesktop.impl.portal.desktop.nwin
+ Slice=session.slice
+ # Auto restart is off as we are DBus activated
+ Restart=no
+diff --git a/xdg-desktop-portal-kde-cppcheck.xml b/nwin-desktop-portal-cppcheck.xml
+similarity index 100%
+rename from xdg-desktop-portal-kde-cppcheck.xml
+rename to nwin-desktop-portal-cppcheck.xml
+diff --git a/xdg-desktop-portal-kde-cppcheck.xml.license b/nwin-desktop-portal-cppcheck.xml.license
+similarity index 100%
+rename from xdg-desktop-portal-kde-cppcheck.xml.license
+rename to nwin-desktop-portal-cppcheck.xml.license
+diff --git a/po/ar/xdg-desktop-portal-kde.po b/po/ar/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ar/xdg-desktop-portal-kde.po
+rename to po/ar/nwin-desktop-portal.po
+index 6e40ec2..fafd454 100644
+--- a/po/ar/xdg-desktop-portal-kde.po
++++ b/po/ar/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # SPDX-FileCopyrightText: 2021, 2022, 2023, 2024, 2025, 2026 Zayed Al-Saidi <zayed.alsaidi@gmail.com>
+ # Zayed Al-Saidi <zayed.alsaidi@gmail.com>, 2024.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-13 20:12+0400\n"
+@@ -523,7 +523,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "حاول التطبيق <application>%1</application> بدء جلسة سطح مكتب بعيد، لكن سطح "
+ "المكتب البعيد غير متاح على هذا النظام. يرجى التأكد من تشغيل جلسة ويلاند "
+@@ -673,7 +673,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "حاول التطبيق <application>%1</application> بدء جلسة مشاركة شاشة، لكن مشاركة "
+ "الشاشة غير متاحة على هذا النظام. يرجى التأكد من تشغيل جلسة ويلاند باستخدام "
+diff --git a/po/ast/xdg-desktop-portal-kde.po b/po/ast/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ast/xdg-desktop-portal-kde.po
+rename to po/ast/nwin-desktop-portal.po
+index a21fe7c..658f048 100644
+--- a/po/ast/xdg-desktop-portal-kde.po
++++ b/po/ast/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) 2023 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # SPDX-FileCopyrightText: 2023 Enol P. <enolp@softastur.org>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2023-11-11 21:18+0100\n"
+@@ -511,7 +511,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -651,7 +651,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/az/xdg-desktop-portal-kde.po b/po/az/nwin-desktop-portal.po
+similarity index 99%
+rename from po/az/xdg-desktop-portal-kde.po
+rename to po/az/nwin-desktop-portal.po
+index a9346cf..5a367b8 100644
+--- a/po/az/xdg-desktop-portal-kde.po
++++ b/po/az/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) YEAR This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # Kheyyam Gojayev <xxmn77@gmail.com>, 2020, 2021, 2022.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2022-08-24 17:55+0400\n"
+@@ -534,7 +534,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -675,7 +675,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/bg/xdg-desktop-portal-kde.po b/po/bg/nwin-desktop-portal.po
+similarity index 99%
+rename from po/bg/xdg-desktop-portal-kde.po
+rename to po/bg/nwin-desktop-portal.po
+index db1d9fe..cf6aea6 100644
+--- a/po/bg/xdg-desktop-portal-kde.po
++++ b/po/bg/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # SPDX-FileCopyrightText: 2022-2026 Mincho Kondarev <mkondarev@yahoo.de>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-26 21:38+0200\n"
+@@ -524,12 +524,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Приложението <application>%1</application> се опита да стартира отдалечена "
+ "сесия на работния плот, но такава сесия не е на разположение. Моля, уверете "
+ "се, че се изпълнява сесия на Wayland със съвместим мениджър на прозорци като "
+-"KWin."
++"NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -675,12 +675,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Приложението <application>%1</application> се опита да стартира сесия за "
+ "споделяне на екрана, но споделянето на екрана не е налично на тази система. "
+ "Моля, уверете се, че изпълнявате Wayland сесия със съвместим мениджър на "
+-"прозорци, като например KWin."
++"прозорци, като например NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ca/xdg-desktop-portal-kde.po b/po/ca/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ca/xdg-desktop-portal-kde.po
+rename to po/ca/nwin-desktop-portal.po
+index 59382d8..80e276b 100644
+--- a/po/ca/xdg-desktop-portal-kde.po
++++ b/po/ca/nwin-desktop-portal.po
+@@ -1,4 +1,4 @@
+-# Translation of xdg-desktop-portal-kde.po to Catalan
++# Translation of nwin-desktop-portal.po to Catalan
+ # Copyright (C) 2017-2026 This_file_is_part_of_KDE
+ # This file is distributed under the license LGPL version 2.1 or
+ # version 3 or later versions approved by the membership of KDE e.V.
+@@ -8,7 +8,7 @@
+ # SPDX-FileCopyrightText: 2017-2026 Josep M. Ferrer <txemaq@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-12 10:22+0200\n"
+@@ -530,12 +530,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'aplicació <application>%1</application> ha intentat iniciar una sessió "
+ "d'escriptori remot, però l'escriptori remot no està disponible en aquest "
+ "sistema. Assegureu-vos que esteu executant una sessió Wayland amb un gestor "
+-"de finestres compatible com el KWin."
++"de finestres compatible com el NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -681,12 +681,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'aplicació <application>%1</application> ha intentat iniciar una "
+ "compartició de pantalla, però la compartició de pantalla no està disponible "
+ "en aquest sistema. Assegureu-vos que esteu executant una sessió Wayland amb "
+-"un gestor de finestres compatible com el KWin."
++"un gestor de finestres compatible com el NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ca@valencia/xdg-desktop-portal-kde.po b/po/ca@valencia/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ca@valencia/xdg-desktop-portal-kde.po
+rename to po/ca@valencia/nwin-desktop-portal.po
+index 688dce8..17551d6 100644
+--- a/po/ca@valencia/xdg-desktop-portal-kde.po
++++ b/po/ca@valencia/nwin-desktop-portal.po
+@@ -1,4 +1,4 @@
+-# Translation of xdg-desktop-portal-kde.po to Catalan (Valencian)
++# Translation of nwin-desktop-portal.po to Catalan (Valencian)
+ # Copyright (C) 2017-2026 This_file_is_part_of_KDE
+ # This file is distributed under the license LGPL version 2.1 or
+ # version 3 or later versions approved by the membership of KDE e.V.
+@@ -8,7 +8,7 @@
+ # SPDX-FileCopyrightText: 2017-2026 Josep M. Ferrer <txemaq@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-12 10:22+0200\n"
+@@ -531,12 +531,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'aplicació <application>%1</application> ha intentat iniciar una sessió "
+ "d'escriptori remot, però l'escriptori remot no està disponible en este "
+ "sistema. Assegureu-vos que esteu executant una sessió Wayland amb un gestor "
+-"de finestres compatible com KWin."
++"de finestres compatible com NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -682,12 +682,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'aplicació <application>%1</application> ha intentat iniciar una "
+ "compartició de pantalla, però la compartició de pantalla no està disponible "
+ "en este sistema. Assegureu-vos que esteu executant una sessió Wayland amb un "
+-"gestor de finestres compatible com KWin."
++"gestor de finestres compatible com NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/cs/xdg-desktop-portal-kde.po b/po/cs/nwin-desktop-portal.po
+similarity index 99%
+rename from po/cs/xdg-desktop-portal-kde.po
+rename to po/cs/nwin-desktop-portal.po
+index 83a339f..0506b46 100644
+--- a/po/cs/xdg-desktop-portal-kde.po
++++ b/po/cs/nwin-desktop-portal.po
+@@ -528,11 +528,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplikace <application>%1</application> se pokusila spustit sezení vzdálené "
+ "plochy, ale vzdálená plocha není na tomto systému k dispozici. Ujistěte se, "
+-"že používáte sezení Wayland s kompatibilním správcem oken, jako je KWin."
++"že používáte sezení Wayland s kompatibilním správcem oken, jako je NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -678,11 +678,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplikace <application>%1</application> se pokusila spustit sezení sdílené "
+ "obrazovky, ale sdílení obrazovky není na tomto systému k dispozici. Ujistěte "
+-"se, že používáte sezení Wayland s kompatibilním správcem oken, jako je KWin."
++"se, že používáte sezení Wayland s kompatibilním správcem oken, jako je NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/da/xdg-desktop-portal-kde.po b/po/da/nwin-desktop-portal.po
+similarity index 99%
+rename from po/da/xdg-desktop-portal-kde.po
+rename to po/da/nwin-desktop-portal.po
+index cb9f3d1..ca81545 100644
+--- a/po/da/xdg-desktop-portal-kde.po
++++ b/po/da/nwin-desktop-portal.po
+@@ -534,7 +534,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -681,7 +681,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/de/xdg-desktop-portal-kde.po b/po/de/nwin-desktop-portal.po
+similarity index 99%
+rename from po/de/xdg-desktop-portal-kde.po
+rename to po/de/nwin-desktop-portal.po
+index b5aa64f..17f4510 100644
+--- a/po/de/xdg-desktop-portal-kde.po
++++ b/po/de/nwin-desktop-portal.po
+@@ -7,7 +7,7 @@
+ # SPDX-FileCopyrightText: 2026 Philipp Kiemle <l10n.daphipz@fastmail.de>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-25 21:53+0200\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Die Anwendung <application>%1</application> hat versucht, eine entfernte "
+ "Arbeitsflächensitzung zu starten, aber diese Funktion ist auf diesem System "
+ "nicht verfügbar. Bitte stellen Sie sicher, dass Sie eine Wayland-Sitzung mit "
+-"einem kompatiblen Fenstermanager wie KWin ausführen."
++"einem kompatiblen Fenstermanager wie NWin ausführen."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -680,12 +680,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Die Anwendung <application>%1</application> hat versucht, eine "
+ "Bildschirmübertragung zu starten, aber diese Funktion ist auf diesem System "
+ "nicht verfügbar. Bitte stellen Sie sicher, dass Sie eine Wayland-Sitzung mit "
+-"einem kompatiblen Fenstermanager wie KWin ausführen."
++"einem kompatiblen Fenstermanager wie NWin ausführen."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/el/xdg-desktop-portal-kde.po b/po/el/nwin-desktop-portal.po
+similarity index 99%
+rename from po/el/xdg-desktop-portal-kde.po
+rename to po/el/nwin-desktop-portal.po
+index 10c384c..f53455d 100644
+--- a/po/el/xdg-desktop-portal-kde.po
++++ b/po/el/nwin-desktop-portal.po
+@@ -533,7 +533,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -680,7 +680,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/en_GB/xdg-desktop-portal-kde.po b/po/en_GB/nwin-desktop-portal.po
+similarity index 99%
+rename from po/en_GB/xdg-desktop-portal-kde.po
+rename to po/en_GB/nwin-desktop-portal.po
+index 7752d23..5ccf2b2 100644
+--- a/po/en_GB/xdg-desktop-portal-kde.po
++++ b/po/en_GB/nwin-desktop-portal.po
+@@ -531,7 +531,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -677,7 +677,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/eo/xdg-desktop-portal-kde.po b/po/eo/nwin-desktop-portal.po
+similarity index 99%
+rename from po/eo/xdg-desktop-portal-kde.po
+rename to po/eo/nwin-desktop-portal.po
+index 16c655a..d43b9e9 100644
+--- a/po/eo/xdg-desktop-portal-kde.po
++++ b/po/eo/nwin-desktop-portal.po
+@@ -1,6 +1,6 @@
+-# translation of xdg-desktop-portal-kde.pot to Esperanto
++# translation of nwin-desktop-portal.pot to Esperanto
+ # Copyright (C) 2017 Free Software Foundation, Inc.
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Oliver Kellogg <olivermkellogg@gmail.com>, 2023.
+ #
+ # Minuskloj: ĉ ĝ ĵ ĥ ŝ ŭ   Majuskloj: Ĉ Ĝ Ĵ Ĥ Ŝ Ŭ
+@@ -536,7 +536,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -681,7 +681,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/es/xdg-desktop-portal-kde.po b/po/es/nwin-desktop-portal.po
+similarity index 98%
+rename from po/es/xdg-desktop-portal-kde.po
+rename to po/es/nwin-desktop-portal.po
+index 0ff0da6..6b5505a 100644
+--- a/po/es/xdg-desktop-portal-kde.po
++++ b/po/es/nwin-desktop-portal.po
+@@ -1,12 +1,12 @@
+-# Spanish translations for xdg-desktop-portal-kde.po package.
++# Spanish translations for nwin-desktop-portal.po package.
+ # Copyright (C) 2017-2026 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Automatically generated, 2017.
+ #
+ # SPDX-FileCopyrightText: 2017-2026 Eloy Cuadra <ecuadra@eloihr.net>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-25 11:17+0100\n"
+@@ -530,12 +530,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "La aplicación <application>%1</application> ha intentado iniciar una sesión "
+ "de escritorio remoto, pero el escritorio remoto no está disponible en este "
+ "sistema. Asegúrese de que está ejecutando una sesión de Wayland con un "
+-"gestor de ventanas compatible, como KWin."
++"gestor de ventanas compatible, como NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -681,12 +681,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "La aplicación <application>%1</application> ha intentado iniciar una sesión "
+ "de compartir la ventana, pero compartir la ventana no está disponible en "
+ "este sistema. Asegúrese de que está ejecutando una sesión de Wayland con un "
+-"gestor de ventanas compatible, como KWin."
++"gestor de ventanas compatible, como NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/et/xdg-desktop-portal-kde.po b/po/et/nwin-desktop-portal.po
+similarity index 99%
+rename from po/et/xdg-desktop-portal-kde.po
+rename to po/et/nwin-desktop-portal.po
+index 6148e15..5bea541 100644
+--- a/po/et/xdg-desktop-portal-kde.po
++++ b/po/et/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # Copyright (C) YEAR This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # Marek Laane <qiilaq69@gmail.com>, 2019, 2020.
+ # Mihkel Tõnnov <mihhkel@gmail.com>, 2020.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2020-10-11 01:46+0200\n"
+@@ -526,7 +526,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -665,7 +665,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/eu/xdg-desktop-portal-kde.po b/po/eu/nwin-desktop-portal.po
+similarity index 98%
+rename from po/eu/xdg-desktop-portal-kde.po
+rename to po/eu/nwin-desktop-portal.po
+index 9413975..2ef1ec3 100644
+--- a/po/eu/xdg-desktop-portal-kde.po
++++ b/po/eu/nwin-desktop-portal.po
+@@ -1,13 +1,13 @@
+-# Translation for xdg-desktop-portal-kde.po to Euskara/Basque (eu).
++# Translation for nwin-desktop-portal.po to Euskara/Basque (eu).
+ # Copyright (C) 2007-2026 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # SPDX-FileCopyrightText: 2024-2026 KDE euskaratzeko proiektuaren arduraduna <xalba@ni.eus>
+ #
+ # Translators:
+ # Iñigo Salvador Azurmendi <xalba@ni.eus>, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-07-04 14:06+0200\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> aplikazioa urruneko mahaigaineko saio bat "
+ "abiatzen saiatu da, baina urruneko mahaigaina ez dago sistema honetan "
+ "erabilgarri. Mesedez, ziurtatu Wayland saio bat leiho-kudeatzaile "
+-"bateragarri batekin, KWin esaterako, ibiltzen ari zarela."
++"bateragarri batekin, NWin esaterako, ibiltzen ari zarela."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,12 +679,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> aplikazioa pantaila partekatzeko saio "
+ "batabiatzen saiatu da, baina urruneko mahaigaina ez dago sistema honetan "
+ "erabilgarri. Mesedez, ziurtatu Wayland saio bat leiho-kudeatzaile "
+-"bateragarri batekin, KWin esaterako, ibiltzen ari zarela."
++"bateragarri batekin, NWin esaterako, ibiltzen ari zarela."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/fi/xdg-desktop-portal-kde.po b/po/fi/nwin-desktop-portal.po
+similarity index 99%
+rename from po/fi/xdg-desktop-portal-kde.po
+rename to po/fi/nwin-desktop-portal.po
+index a17d3f5..e73df1c 100644
+--- a/po/fi/xdg-desktop-portal-kde.po
++++ b/po/fi/nwin-desktop-portal.po
+@@ -529,11 +529,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Sovellus <application>%1</application> yritti käynnistää näytönjakoistunnon, "
+ "mutta etätyöpöytä ei ole käytettävissä tässä järjestelmäss. Varmista, että "
+-"olet Wayland-istunnossa ja ikkunointiohjelma on yhteensopiva, esim. KWin."
++"olet Wayland-istunnossa ja ikkunointiohjelma on yhteensopiva, esim. NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,11 +679,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Sovellus <application>%1</application> yritti käynnistää näytönjakoistunnon, "
+ "mutta näytönjako ei ole käytettävissä tässä järjestelmässä. Varmista, että "
+-"olet Wayland-istunnossa ja ikkunointiohjelma on yhteensopiva, esim. KWin."
++"olet Wayland-istunnossa ja ikkunointiohjelma on yhteensopiva, esim. NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/fr/xdg-desktop-portal-kde.po b/po/fr/nwin-desktop-portal.po
+similarity index 99%
+rename from po/fr/xdg-desktop-portal-kde.po
+rename to po/fr/nwin-desktop-portal.po
+index 37aff49..781e269 100644
+--- a/po/fr/xdg-desktop-portal-kde.po
++++ b/po/fr/nwin-desktop-portal.po
+@@ -4,7 +4,7 @@
+ # Xavier Besnard <xavier.besnard@kde.org>, 2023.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-26 07:30+0200\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'application <application>%1</application> a tenté de démarrer une session "
+ "de bureau à distance. Cependant, le bureau à distance est non disponible sur "
+ "ce système. Veuillez vérifier que vous travaillez sous une session Wayland "
+-"avec un gestionnaire de fenêtres compatible comme KWin."
++"avec un gestionnaire de fenêtres compatible comme NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -680,12 +680,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'application <application>%1</application> a tenté de démarrer une session "
+ "de partage d'écrans. Cependant, le partage d'écran est non disponible sur ce "
+ "système. Veuillez vérifier que vous travaillez sous une session Wayland avec "
+-"un gestionnaire de fenêtres compatible comme KWin."
++"un gestionnaire de fenêtres compatible comme NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ga/xdg-desktop-portal-kde.po b/po/ga/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ga/xdg-desktop-portal-kde.po
+rename to po/ga/nwin-desktop-portal.po
+index d263a62..cc273cc 100644
+--- a/po/ga/xdg-desktop-portal-kde.po
++++ b/po/ga/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # SOME DESCRIPTIVE TITLE.
+ # Copyright (C) YEAR This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+@@ -508,7 +508,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -644,7 +644,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/gl/xdg-desktop-portal-kde.po b/po/gl/nwin-desktop-portal.po
+similarity index 99%
+rename from po/gl/xdg-desktop-portal-kde.po
+rename to po/gl/nwin-desktop-portal.po
+index ef0c7ce..c003eeb 100644
+--- a/po/gl/xdg-desktop-portal-kde.po
++++ b/po/gl/nwin-desktop-portal.po
+@@ -536,7 +536,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -683,7 +683,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/he/xdg-desktop-portal-kde.po b/po/he/nwin-desktop-portal.po
+similarity index 99%
+rename from po/he/xdg-desktop-portal-kde.po
+rename to po/he/nwin-desktop-portal.po
+index 120d6e3..616ccec 100644
+--- a/po/he/xdg-desktop-portal-kde.po
++++ b/po/he/nwin-desktop-portal.po
+@@ -2,7 +2,7 @@
+ # SPDX-FileCopyrightText: 2024-2026 Yaron Shahrabani <sh.yaron@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-26 08:46+0300\n"
+@@ -516,11 +516,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "היישום <application>%1</application> ניסה להקים הפעלת שולחן עבודה מרחוק אבל "
+ "אין תמיכה בשליטה בשולחן עבודה מרחוק במערכת בזאת. נא לוודא שהפעלת ה־Wayland "
+-"רצה עם מנהל חלונות תואם כגון KWin."
++"רצה עם מנהל חלונות תואם כגון NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -666,11 +666,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "היישום <application>%1</application> ניסה להקים הפעלת שיתוף מסך אבל שיתוף "
+ "מסך לא זמין במערכת הזה. נא לוודא שהפעלת ה־Wayland רצה עם מנהל חלונות תואם "
+-"כגון KWin."
++"כגון NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/hi/xdg-desktop-portal-kde.po b/po/hi/nwin-desktop-portal.po
+similarity index 99%
+rename from po/hi/xdg-desktop-portal-kde.po
+rename to po/hi/nwin-desktop-portal.po
+index 70e4489..17cbdbf 100644
+--- a/po/hi/xdg-desktop-portal-kde.po
++++ b/po/hi/nwin-desktop-portal.po
+@@ -1,12 +1,12 @@
+-# Hindi translations for xdg-desktop-portal-kde package.
++# Hindi translations for nwin-desktop-portal package.
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Kali <EMAIL@ADDRESS>, 2024.
+ #
+ # SPDX-FileCopyrightText: 2024 kali <skkalwar999@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2024-12-15 19:31+0530\n"
+@@ -532,7 +532,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -677,7 +677,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/hu/xdg-desktop-portal-kde.po b/po/hu/nwin-desktop-portal.po
+similarity index 99%
+rename from po/hu/xdg-desktop-portal-kde.po
+rename to po/hu/nwin-desktop-portal.po
+index ea59afc..a35f0d9 100644
+--- a/po/hu/xdg-desktop-portal-kde.po
++++ b/po/hu/nwin-desktop-portal.po
+@@ -530,12 +530,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "A(z) <application>%1</application> alkalmazás megpróbált távoli asztali "
+ "munkamenetet indítani, de a távoli asztal ezen a rendszeren nem érhető el. "
+ "Ellenőrizze, hogy Wayland munkamenetet futtat-e egy kompatibilis "
+-"ablakkezelővel, például a KWinnel."
++"ablakkezelővel, például a NWinnel."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -681,12 +681,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "A(z) <application>%1</application> alkalmazás megpróbált elindítani egy "
+ "képernyőmegosztási munkamenetet, de a képernyőmegosztás ezen a rendszeren "
+ "nem érhető el. Ellenőrizze, hogy Wayland munkamenetet futtat-e egy "
+-"kompatibilis ablakkezelővel, például a KWinnel."
++"kompatibilis ablakkezelővel, például a NWinnel."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ia/xdg-desktop-portal-kde.po b/po/ia/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ia/xdg-desktop-portal-kde.po
+rename to po/ia/nwin-desktop-portal.po
+index 3a62547..774256f 100644
+--- a/po/ia/xdg-desktop-portal-kde.po
++++ b/po/ia/nwin-desktop-portal.po
+@@ -520,12 +520,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Le application <application>%1</application> tentava initiar un session de  "
+ "scriptorio remote, sed le scriptorio remote non es disponibile in iste "
+ "systema.  Per favor, assecura te que tu executa un session de Wayland con un "
+-"gerente  de fenestras compatibile tal como KWin."
++"gerente  de fenestras compatibile tal como NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -671,12 +671,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Le application <application>%1</application> tentava initiar un session de "
+ "compartir schermo, sed le compartir schermo non es disponibile in iste "
+ "systema.  Per favor, assecura te que tu executa un session de Wayland con un "
+-"gerente  de fenestras compatibile tal como KWin."
++"gerente  de fenestras compatibile tal como NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/id/xdg-desktop-portal-kde.po b/po/id/nwin-desktop-portal.po
+similarity index 99%
+rename from po/id/xdg-desktop-portal-kde.po
+rename to po/id/nwin-desktop-portal.po
+index f99a5de..c9bd943 100644
+--- a/po/id/xdg-desktop-portal-kde.po
++++ b/po/id/nwin-desktop-portal.po
+@@ -1,12 +1,12 @@
+ # Copyright (C) YEAR This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Wantoyo <wantoyek@gmail.com>, 2018, 2019, 2021, 2022.
+ # Aziz Adam Adrian <4.adam.adrian@gmail.com>, 2022.
+ # Linerly <linerly@protonmail.com>, 2023.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2023-02-21 20:18+0700\n"
+@@ -531,7 +531,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -678,7 +678,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/is/xdg-desktop-portal-kde.po b/po/is/nwin-desktop-portal.po
+similarity index 99%
+rename from po/is/xdg-desktop-portal-kde.po
+rename to po/is/nwin-desktop-portal.po
+index a5b8be3..18f9929 100644
+--- a/po/is/xdg-desktop-portal-kde.po
++++ b/po/is/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # SPDX-FileCopyrightText: 2024, 2025, 2026 Sveinn í Felli <sv1@fellsnet.is>
+ # SPDX-FileCopyrightText: 2024 Gummi <gudmundure@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-03-16 16:50+0000\n"
+@@ -531,12 +531,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Forritið <application>%1</application> reyndi að ræsa fjartengda "
+ "skjáborðssetu en fjartengt skjáborð finnst ekki á þessu kerfi. Gakktu úr "
+ "skugga um að þú sért að keyra Wayland-setu með samhæfðum gluggastjóra á borð "
+-"við KWin."
++"við NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -682,11 +682,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Forritið <application>%1</application> reyndi að ræsa skjádeilingarsetu en "
+ "skjádeiling er ekki í boði á þessu kerfi. Gakktu úr skugga um að þú sért að "
+-"keyra Wayland-setu með samhæfðum gluggastjóra á borð við KWin."
++"keyra Wayland-setu með samhæfðum gluggastjóra á borð við NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/it/xdg-desktop-portal-kde.po b/po/it/nwin-desktop-portal.po
+similarity index 99%
+rename from po/it/xdg-desktop-portal-kde.po
+rename to po/it/nwin-desktop-portal.po
+index 1d18c2e..b12840f 100644
+--- a/po/it/xdg-desktop-portal-kde.po
++++ b/po/it/nwin-desktop-portal.po
+@@ -1,5 +1,5 @@
+ # Copyright (C) YEAR This_file_is_part_of_KDE
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # SPDX-FileCopyrightText: 2017-2026 Luigi Toscano <luigi.toscano@tiscali.it>
+ # Vincenzo Reale <smart2128vr@gmail.com>, 2022.
+ #
+@@ -523,12 +523,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'applicazione <application>%1</application> ha tentato di avviare una "
+ "sessione di desktop remoto, ma il desktop remoto non è disponibile su questo "
+ "sistema. Assicurarsi di essere in una sessione Wayland con un gestore di "
+-"finestre compatibile, come KWin."
++"finestre compatibile, come NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -674,12 +674,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "L'applicazione <application>%1</application> ha tentato di avviare una "
+ "sessione di condivisone dello schermo, ma la condivisione dello schermo non "
+ "è disponibile su questo sistema. Assicurarsi di essere in una sessione "
+-"Wayland con un gestore di finestre compatibile, come KWin."
++"Wayland con un gestore di finestre compatibile, come NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ja/xdg-desktop-portal-kde.po b/po/ja/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ja/xdg-desktop-portal-kde.po
+rename to po/ja/nwin-desktop-portal.po
+index a8c3bf7..bd6e0b3 100644
+--- a/po/ja/xdg-desktop-portal-kde.po
++++ b/po/ja/nwin-desktop-portal.po
+@@ -3,7 +3,7 @@
+ # SPDX-FileCopyrightText: 2026 Mint <5602mint@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-08-19 19:48+0900\n"
+@@ -519,11 +519,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "アプリケーション <application>%1</application> がリモートデスクトップセッショ"
+ "ンを開始しようとしましたが、このシステムはリモートデスクトップに対応していま"
+-"せん。Wayland セッションと互換性のあるウィンドウマネージャ (KWin など) を実行"
++"せん。Wayland セッションと互換性のあるウィンドウマネージャ (NWin など) を実行"
+ "しているか確認してください。"
+ 
+ #: src/remotedesktop.cpp:124
+@@ -670,11 +670,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "アプリケーション <application>%1</application> が画面共有セッションを開始しよ"
+ "うとしましたが、このシステムは画面共有に対応していません。Wayland セッション"
+-"と互換性のあるウィンドウマネージャ (KWin など) を実行しているか確認してくださ"
++"と互換性のあるウィンドウマネージャ (NWin など) を実行しているか確認してくださ"
+ "い。"
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/ka/xdg-desktop-portal-kde.po b/po/ka/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ka/xdg-desktop-portal-kde.po
+rename to po/ka/nwin-desktop-portal.po
+index ca4a369..4478b44 100644
+--- a/po/ka/xdg-desktop-portal-kde.po
++++ b/po/ka/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # SOME DESCRIPTIVE TITLE.
+ # Copyright (C) YEAR This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-09 18:18+0200\n"
+@@ -522,12 +522,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "აპლიკაციამ <application>%1</application> სცადა, გაეშვა დაშორებული სამუშაო "
+ "მაგიდის სესია, მაგრამ ამ სისტემაზე დაშორებული სამუშაო მაგიდა ხელმისაწვდომი "
+ "არაა. დარწმუნდით, რომ გაშვებული გაქვთ Wayland-ის სესია ისეთი თავსებადი "
+-"ფანჯრების მმართველიც, როგორიცაა KWin."
++"ფანჯრების მმართველიც, როგორიცაა NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -673,12 +673,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "აპლიკაციამ <application>%1</application> სცადა, ეკრანის გაზიარების სესია "
+ "დაეწყო, მაგრამ ეკრანის გაზიარება ამ სისტემაზე ხელმისაწვდომი არაა. "
+ "დარწმუნდით, რომ გაშვებული გაქვთ Wayland-ის სესია ისეთი თავსებადი ფანჯრების "
+-"მმართველით, როგორიცაა KWin."
++"მმართველით, როგორიცაა NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ko/xdg-desktop-portal-kde.po b/po/ko/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ko/xdg-desktop-portal-kde.po
+rename to po/ko/nwin-desktop-portal.po
+index 9ee3ff2..00275b0 100644
+--- a/po/ko/xdg-desktop-portal-kde.po
++++ b/po/ko/nwin-desktop-portal.po
+@@ -516,11 +516,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> 앱에서 원격 데스크톱 세션을 시작하려고 했지만 "
+ "이 시스템에서 원격 데스크톱을 사용할 수 없습니다. Wayland 세션을 실행 중이고 "
+-"KWin과 같은 호환 가능한 창 관리자를 실행 중인지 확인하십시오."
++"NWin과 같은 호환 가능한 창 관리자를 실행 중인지 확인하십시오."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -666,10 +666,10 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> 앱에서 화면 공유 세션을 시작하려고 했지만 이 시"
+-"스템에서 화면 공유를 사용할 수 없습니다. Wayland 세션을 실행 중이고 KWin과 같"
++"스템에서 화면 공유를 사용할 수 없습니다. Wayland 세션을 실행 중이고 NWin과 같"
+ "은 호환 가능한 창 관리자를 실행 중인지 확인하십시오."
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/lt/xdg-desktop-portal-kde.po b/po/lt/nwin-desktop-portal.po
+similarity index 99%
+rename from po/lt/xdg-desktop-portal-kde.po
+rename to po/lt/nwin-desktop-portal.po
+index 326eb71..e2d814a 100644
+--- a/po/lt/xdg-desktop-portal-kde.po
++++ b/po/lt/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+-# Lithuanian translations for xdg-desktop-portal-kde package.
++# Lithuanian translations for nwin-desktop-portal package.
+ # Copyright (C) 2019 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Automatically generated, 2019.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-16 01:13+0300\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Programa <application>%1</application> mėgino pradėti nuotolinio darbalaukio "
+ "seansą, bet nuotolinis darbalaukis šioje sistemoje yra neprieinamas. "
+ "Įsitikinkite, kad naudojate Wayland seansą, kartu su suderinama langų "
+-"tvarkytuve, tokia kaip KWin."
++"tvarkytuve, tokia kaip NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,12 +679,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Programa <application>%1</application> mėgino pradėti ekrano bendrinimo "
+ "seansą, bet ekrano bendrinimas šioje sistemoje yra neprieinamas. "
+ "Įsitikinkite, kad naudojate Wayland seansą, kartu su suderinama langų "
+-"tvarkytuve, tokia kaip KWin."
++"tvarkytuve, tokia kaip NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/lv/xdg-desktop-portal-kde.po b/po/lv/nwin-desktop-portal.po
+similarity index 99%
+rename from po/lv/xdg-desktop-portal-kde.po
+rename to po/lv/nwin-desktop-portal.po
+index 039f801..f92b521 100644
+--- a/po/lv/xdg-desktop-portal-kde.po
++++ b/po/lv/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # SPDX-FileCopyrightText: 2024, 2025, 2026 Toms Trasuns <toms.trasuns@posteo.net>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-03-09 18:45+0200\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Lietojumprogramma „<application>%1</application>“ mēģināja palaista attālu "
+ "darbvirsmas sesiju, tomēr attālā darbvirsma šajā sistēmā nav pieejama. "
+ "Pārliecinieties, ka darbināt „Wayland“ sesiju ar saderīgu logu pārvaldnieku, "
+-"piemēram, „KWin“."
++"piemēram, „NWin“."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,12 +679,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Lietojumprogramma „<application>%1</application>“ mēģināja uzsākt ekrāna "
+ "kopīgošanas sesiju, tomēr ekrāna kopīgošana šajā sistēmā nav pieejama. "
+ "Pārliecinieties, ka darbināt „Wayland“ sesiju ar saderīgu logu pārvaldnieku, "
+-"piemēram, „KWin“."
++"piemēram, „NWin“."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ml/xdg-desktop-portal-kde.po b/po/ml/nwin-desktop-portal.po
+similarity index 98%
+rename from po/ml/xdg-desktop-portal-kde.po
+rename to po/ml/nwin-desktop-portal.po
+index 19af622..262f34f 100644
+--- a/po/ml/xdg-desktop-portal-kde.po
++++ b/po/ml/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+-# Malayalam translations for xdg-desktop-portal-kde package.
++# Malayalam translations for nwin-desktop-portal package.
+ # Copyright (C) 2019 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Automatically generated, 2019.
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2019-04-17 03:47+0200\n"
+@@ -508,7 +508,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -644,7 +644,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/nb/xdg-desktop-portal-kde.po b/po/nb/nwin-desktop-portal.po
+similarity index 99%
+rename from po/nb/xdg-desktop-portal-kde.po
+rename to po/nb/nwin-desktop-portal.po
+index 93925df..73dd0a7 100644
+--- a/po/nb/xdg-desktop-portal-kde.po
++++ b/po/nb/nwin-desktop-portal.po
+@@ -1,9 +1,9 @@
+-# Translation of xdg-desktop-portal-kde to Norwegian Bokmål
++# Translation of nwin-desktop-portal to Norwegian Bokmål
+ #
+ # Martin Hansen <mh306602@gmail.com>, 2025, 2026.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-01-18 17:01+0100\n"
+@@ -530,7 +530,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -674,7 +674,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/nl/xdg-desktop-portal-kde.po b/po/nl/nwin-desktop-portal.po
+similarity index 99%
+rename from po/nl/xdg-desktop-portal-kde.po
+rename to po/nl/nwin-desktop-portal.po
+index fa7354e..0d19923 100644
+--- a/po/nl/xdg-desktop-portal-kde.po
++++ b/po/nl/nwin-desktop-portal.po
+@@ -524,12 +524,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "De toepassing <application>%1</application> probeert een bureaubladsessie op "
+ "afstand te starten maar bureaublad op afstand is niet beschikbaar op dit "
+ "systeem. Ga na dat u een Wayland-sessie uitvoert met een compatibele "
+-"vensterbeheerder zoals KWin."
++"vensterbeheerder zoals NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -675,12 +675,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "De toepassing <application>%1</application> probeert een sessie met delen "
+ "van scherm te starten maar delen van scherm is niet beschikbaar op dit "
+ "systeem. Ga na dat u een Wayland-sessie uitvoert met een compatibele "
+-"vensterbeheerder zoals KWin."
++"vensterbeheerder zoals NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/nn/xdg-desktop-portal-kde.po b/po/nn/nwin-desktop-portal.po
+similarity index 99%
+rename from po/nn/xdg-desktop-portal-kde.po
+rename to po/nn/nwin-desktop-portal.po
+index e228598..ea869d2 100644
+--- a/po/nn/xdg-desktop-portal-kde.po
++++ b/po/nn/nwin-desktop-portal.po
+@@ -1,4 +1,4 @@
+-# Translation of xdg-desktop-portal-kde to Norwegian Nynorsk
++# Translation of nwin-desktop-portal to Norwegian Nynorsk
+ #
+ # Karl Ove Hufthammer <karl@huftis.org>, 2018, 2019, 2020, 2022, 2023, 2024, 2025, 2026.
+ # Øystein Steffensen-Alværvik <oysteins.omsetting@protonmail.com>, 2018, 2021, 2022.
+@@ -522,7 +522,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -666,7 +666,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/pa/xdg-desktop-portal-kde.po b/po/pa/nwin-desktop-portal.po
+similarity index 99%
+rename from po/pa/xdg-desktop-portal-kde.po
+rename to po/pa/nwin-desktop-portal.po
+index 9cd3225..2057fd6 100644
+--- a/po/pa/xdg-desktop-portal-kde.po
++++ b/po/pa/nwin-desktop-portal.po
+@@ -528,7 +528,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -673,7 +673,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/pl/xdg-desktop-portal-kde.po b/po/pl/nwin-desktop-portal.po
+similarity index 99%
+rename from po/pl/xdg-desktop-portal-kde.po
+rename to po/pl/nwin-desktop-portal.po
+index d5ab34e..9ffff4a 100644
+--- a/po/pl/xdg-desktop-portal-kde.po
++++ b/po/pl/nwin-desktop-portal.po
+@@ -527,11 +527,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Program <application>%1</application> próbował rozpocząć sesję zdalnego "
+ "pulpitu, ale zdalny pulpit jest niedostępny na tym urządzeniu. Upewnij się, "
+-"że korzystasz z sesji Wayland z zgodnym menedżerem okien, na przykład KWin."
++"że korzystasz z sesji Wayland z zgodnym menedżerem okien, na przykład NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -677,12 +677,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Program <application>%1</application> próbował rozpocząć sesję udostępniania "
+ "ekranu, ale udostępnianie ekranu jest niedostępne na tym urządzeniu. Upewnij "
+ "się, że korzystasz z sesji Wayland z zgodnym menedżerem okien, na przykład "
+-"KWin."
++"NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/pt/xdg-desktop-portal-kde.po b/po/pt/nwin-desktop-portal.po
+similarity index 99%
+rename from po/pt/xdg-desktop-portal-kde.po
+rename to po/pt/nwin-desktop-portal.po
+index f4f3e61..2fffe12 100644
+--- a/po/pt/xdg-desktop-portal-kde.po
++++ b/po/pt/nwin-desktop-portal.po
+@@ -1,6 +1,6 @@
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2023-01-19 03:02+0000\n"
+@@ -526,7 +526,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -673,7 +673,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/pt_BR/xdg-desktop-portal-kde.po b/po/pt_BR/nwin-desktop-portal.po
+similarity index 98%
+rename from po/pt_BR/xdg-desktop-portal-kde.po
+rename to po/pt_BR/nwin-desktop-portal.po
+index e2d804e..a4f0bba 100644
+--- a/po/pt_BR/xdg-desktop-portal-kde.po
++++ b/po/pt_BR/nwin-desktop-portal.po
+@@ -1,6 +1,6 @@
+-# Translation of xdg-desktop-portal-kde.po to Brazilian Portuguese
++# Translation of nwin-desktop-portal.po to Brazilian Portuguese
+ # Copyright (C) 2017-2020 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # Luiz Fernando Ranghetti <elchevive@opensuse.org>, 2017, 2018, 2019, 2020, 2021, 2022, 2023.
+ # André Marcelo Alvarenga <alvarenga@kde.org>, 2018, 2019, 2020.
+@@ -9,7 +9,7 @@
+ # SPDX-FileCopyrightText: 2025-2026 Marcus Gama <marcus.gama@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-25 05:21-0300\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "O aplicativo <application>%1</application> tentou iniciar uma sessão de área "
+ "de trabalho remota, mas o acesso remoto à área de trabalho não está "
+ "disponível neste sistema. Certifique-se de estar executando uma sessão "
+-"Wayland com um gerenciador de janelas compatível, como o KWin."
++"Wayland com um gerenciador de janelas compatível, como o NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,12 +679,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "O aplicativo <application>%1</application> tentou iniciar uma sessão de "
+ "compartilhamento de tela, mas o compartilhamento de tela não está disponível "
+ "neste sistema. Certifique-se de estar executando uma sessão Wayland com um "
+-"gerenciador de janelas compatível, como o KWin."
++"gerenciador de janelas compatível, como o NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ro/xdg-desktop-portal-kde.po b/po/ro/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ro/xdg-desktop-portal-kde.po
+rename to po/ro/nwin-desktop-portal.po
+index 0eb1fab..3ba2e0a 100644
+--- a/po/ro/xdg-desktop-portal-kde.po
++++ b/po/ro/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) 2025 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # SPDX-FileCopyrightText: 2020, 2021, 2022, 2024, 2025, 2026 Sergiu Bivol <sergiu@cip.md>
+ #
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-15 15:30+0100\n"
+@@ -526,12 +526,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplicația <application>%1</application> a încercat să pornească o sesiune de "
+ "birou distant, dar biroul distant nu e disponibil pe acest sistem. Asigurați-"
+ "vă că rulați o sesiune Wayland cu un gestionar de ferestre compatibil, cum "
+-"ar fi KWin."
++"ar fi NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -677,12 +677,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplicația <application>%1</application> a încercat să pornească o sesiune de "
+ "partajare a ecranului, dar partajarea ecranului nu e disponibilă pe acest "
+ "sistem. Asigurați-vă că rulați o sesiune Wayland cu un gestionar de ferestre "
+-"compatibil, cum ar fi KWin."
++"compatibil, cum ar fi NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/ru/xdg-desktop-portal-kde.po b/po/ru/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ru/xdg-desktop-portal-kde.po
+rename to po/ru/nwin-desktop-portal.po
+index b374da1..54ff974 100644
+--- a/po/ru/xdg-desktop-portal-kde.po
++++ b/po/ru/nwin-desktop-portal.po
+@@ -536,12 +536,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Приложение <application>%1</application> попыталось запустить сеанс "
+ "удалённого рабочего стола, но удалённый рабочий стол недоступен в этой "
+ "системе. Убедитесь, что вы работаете в сеансе Wayland с совместимым "
+-"диспетчером окон, таким как KWin."
++"диспетчером окон, таким как NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -687,11 +687,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Приложение <application>%1</application> попыталось запустить демонстрацию "
+ "экрана, которая недоступна в этой системе. Убедитесь, что вы работаете в "
+-"сеансе Wayland с совместимым диспетчером окон, таким как KWin."
++"сеансе Wayland с совместимым диспетчером окон, таким как NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/sa/xdg-desktop-portal-kde.po b/po/sa/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sa/xdg-desktop-portal-kde.po
+rename to po/sa/nwin-desktop-portal.po
+index 5948e5a..54ebe81 100644
+--- a/po/sa/xdg-desktop-portal-kde.po
++++ b/po/sa/nwin-desktop-portal.po
+@@ -1,12 +1,12 @@
+-# Sanskrit translations for xdg-desktop-portal-kde package.
++# Sanskrit translations for nwin-desktop-portal package.
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ # Kali <EMAIL@ADDRESS>, 2024.
+ #
+ # SPDX-FileCopyrightText: 2024 kali <skkalwar999@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2024-12-24 20:39+0530\n"
+@@ -532,7 +532,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -677,7 +677,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/sk/xdg-desktop-portal-kde.po b/po/sk/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sk/xdg-desktop-portal-kde.po
+rename to po/sk/nwin-desktop-portal.po
+index 80868f7..6c15865 100644
+--- a/po/sk/xdg-desktop-portal-kde.po
++++ b/po/sk/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+-# translation of xdg-desktop-portal-kde.po to Slovak
++# translation of nwin-desktop-portal.po to Slovak
+ # Roman Paholik <wizzardsk@gmail.com>, 2017, 2019, 2022.
+ # Mthw <jari_45@hotmail.com>, 2018, 2019.
+ # SPDX-FileCopyrightText: 2020, 2021, 2022, 2023, 2024 Matej Mrenica <matejm98mthw@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2024-03-24 11:38+0100\n"
+@@ -523,12 +523,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -674,12 +674,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/sl/xdg-desktop-portal-kde.po b/po/sl/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sl/xdg-desktop-portal-kde.po
+rename to po/sl/nwin-desktop-portal.po
+index daf3dca..580e5b3 100644
+--- a/po/sl/xdg-desktop-portal-kde.po
++++ b/po/sl/nwin-desktop-portal.po
+@@ -7,7 +7,7 @@
+ # Martin Srebotnjak <miles@filmsi.net>, 2022.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-25 06:43+0200\n"
+@@ -527,12 +527,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplikacija <application>%1</application> je poskusila zagnati sejo "
+ "oddaljenega namizja, vendar oddaljeno namizje v tem sistemu ni na voljo. "
+ "Prepričajte se, da izvajate sejo Wayland z združljivim upravljalnikom oken, "
+-"kot je KWin."
++"kot je NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -678,11 +678,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Aplikacija <application>%1</application> je poskusila začeti sejo deljenja "
+ "zaslona, ​​vendar deljenje zaslona v tem sistemu ni na voljo. Prepričajte se, "
+-"da izvajate sejo Wayland z združljivim upravljalnikom oken, kot je KWin."
++"da izvajate sejo Wayland z združljivim upravljalnikom oken, kot je NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/sr/xdg-desktop-portal-kde.po b/po/sr/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sr/xdg-desktop-portal-kde.po
+rename to po/sr/nwin-desktop-portal.po
+index 14644e1..7e0640e 100644
+--- a/po/sr/xdg-desktop-portal-kde.po
++++ b/po/sr/nwin-desktop-portal.po
+@@ -1,8 +1,8 @@
+-# Translation of xdg-desktop-portal-kde.po into Serbian.
++# Translation of nwin-desktop-portal.po into Serbian.
+ # Chusslove Illich <caslav.ilic@gmx.net>, 2017.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2017-06-04 23:06+0200\n"
+@@ -519,7 +519,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -655,7 +655,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/sr@ijekavian/xdg-desktop-portal-kde.po b/po/sr@ijekavian/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sr@ijekavian/xdg-desktop-portal-kde.po
+rename to po/sr@ijekavian/nwin-desktop-portal.po
+index 6c95c26..f8ab1ab 100644
+--- a/po/sr@ijekavian/xdg-desktop-portal-kde.po
++++ b/po/sr@ijekavian/nwin-desktop-portal.po
+@@ -1,8 +1,8 @@
+-# Translation of xdg-desktop-portal-kde.po into Serbian.
++# Translation of nwin-desktop-portal.po into Serbian.
+ # Chusslove Illich <caslav.ilic@gmx.net>, 2017.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2017-06-04 23:06+0200\n"
+@@ -519,7 +519,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -655,7 +655,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/sr@ijekavianlatin/xdg-desktop-portal-kde.po b/po/sr@ijekavianlatin/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sr@ijekavianlatin/xdg-desktop-portal-kde.po
+rename to po/sr@ijekavianlatin/nwin-desktop-portal.po
+index 3da80e4..edb750b 100644
+--- a/po/sr@ijekavianlatin/xdg-desktop-portal-kde.po
++++ b/po/sr@ijekavianlatin/nwin-desktop-portal.po
+@@ -1,8 +1,8 @@
+-# Translation of xdg-desktop-portal-kde.po into Serbian.
++# Translation of nwin-desktop-portal.po into Serbian.
+ # Chusslove Illich <caslav.ilic@gmx.net>, 2017.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2017-06-04 23:06+0200\n"
+@@ -519,7 +519,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -655,7 +655,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/sr@latin/xdg-desktop-portal-kde.po b/po/sr@latin/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sr@latin/xdg-desktop-portal-kde.po
+rename to po/sr@latin/nwin-desktop-portal.po
+index 2ca831c..ebdaf5f 100644
+--- a/po/sr@latin/xdg-desktop-portal-kde.po
++++ b/po/sr@latin/nwin-desktop-portal.po
+@@ -1,8 +1,8 @@
+-# Translation of xdg-desktop-portal-kde.po into Serbian.
++# Translation of nwin-desktop-portal.po into Serbian.
+ # Chusslove Illich <caslav.ilic@gmx.net>, 2017.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2017-06-04 23:06+0200\n"
+@@ -519,7 +519,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/remotedesktop.cpp:124
+@@ -655,7 +655,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/sv/xdg-desktop-portal-kde.po b/po/sv/nwin-desktop-portal.po
+similarity index 99%
+rename from po/sv/xdg-desktop-portal-kde.po
+rename to po/sv/nwin-desktop-portal.po
+index 4962b23..5745ff9 100644
+--- a/po/sv/xdg-desktop-portal-kde.po
++++ b/po/sv/nwin-desktop-portal.po
+@@ -521,7 +521,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Programmet <application>%1</application> försökte starta en "
+ "fjärrskrivbordssession men fjärrskrivbord är inte tillgängligt på det här "
+@@ -672,7 +672,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Programmet <application>%1</application> försökte starta en "
+ "skärmdelningssession men skärmdelning är inte tillgängligt på det här "
+diff --git a/po/ta/xdg-desktop-portal-kde.po b/po/ta/nwin-desktop-portal.po
+similarity index 99%
+rename from po/ta/xdg-desktop-portal-kde.po
+rename to po/ta/nwin-desktop-portal.po
+index b5c27ed..509b9b5 100644
+--- a/po/ta/xdg-desktop-portal-kde.po
++++ b/po/ta/nwin-desktop-portal.po
+@@ -1,10 +1,10 @@
+ # Copyright (C) 2023 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # SPDX-FileCopyrightText: 2021, 2022, 2023, 2024, 2025, 2026 Kishore G <kishore96@gmail.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-02-01 18:39+0530\n"
+@@ -526,7 +526,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> ஓர் தொலையியக்கு பணிமேடை அமர்வைத் துவக்க முயற்சித்தது, "
+ "ஆனால் இந்த அமர்வில் அந்த அம்சம் இயங்காது. Wayland அமர்வில் இருப்பதையும் பணிமேடை "
+@@ -675,7 +675,7 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> திரைப்பகிர்வைத் துவக்க முயற்சித்தது, ஆனால் இந்த அமர்வில் "
+ "அந்த அம்சம் இயங்காது. Wayland அமர்வில் இருப்பதையும் பணிமேடை தொலையியக்கத்தை ஆதரிக்கும் "
+diff --git a/po/tr/xdg-desktop-portal-kde.po b/po/tr/nwin-desktop-portal.po
+similarity index 99%
+rename from po/tr/xdg-desktop-portal-kde.po
+rename to po/tr/nwin-desktop-portal.po
+index 9cae588..d248d68 100644
+--- a/po/tr/xdg-desktop-portal-kde.po
++++ b/po/tr/nwin-desktop-portal.po
+@@ -4,7 +4,7 @@
+ # SPDX-FileCopyrightText: 2022-2026 Emir SARI <emir_sari@icloud.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-12 20:39+0300\n"
+@@ -520,11 +520,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> uygulaması bir uzak masaüstü oturumu "
+ "başlatmaya çalıştı; ancak bu sistemde uzak masaüstü kullanılamıyor. Lütfen "
+-"KWin gibi uyumlu bir pencere yöneticisiyle bir Wayland oturumu "
++"NWin gibi uyumlu bir pencere yöneticisiyle bir Wayland oturumu "
+ "çalıştırdığınızdan emin olun."
+ 
+ #: src/remotedesktop.cpp:124
+@@ -671,11 +671,11 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "<application>%1</application> uygulaması bir ekran paylaşımı oturumu "
+ "başlatmaya çalıştı; ancak bu sistemde ekran paylaşımı kullanılamıyor. Lütfen "
+-"KWin gibi uyumlu bir pencere yöneticisiyle bir Wayland oturumu "
++"NWin gibi uyumlu bir pencere yöneticisiyle bir Wayland oturumu "
+ "çalıştırdığınızdan emin olun."
+ 
+ #: src/screencast.cpp:157
+diff --git a/po/uk/xdg-desktop-portal-kde.po b/po/uk/nwin-desktop-portal.po
+similarity index 99%
+rename from po/uk/xdg-desktop-portal-kde.po
+rename to po/uk/nwin-desktop-portal.po
+index 3d7ef2f..554033e 100644
+--- a/po/uk/xdg-desktop-portal-kde.po
++++ b/po/uk/nwin-desktop-portal.po
+@@ -1,4 +1,4 @@
+-# Translation of xdg-desktop-portal-kde.po to Ukrainian
++# Translation of nwin-desktop-portal.po to Ukrainian
+ # Copyright (C) 2017-2020 This_file_is_part_of_KDE
+ # This file is distributed under the license LGPL version 2.1 or
+ # version 3 or later versions approved by the membership of KDE e.V.
+@@ -6,7 +6,7 @@
+ # Yuri Chornoivan <yurchor@ukr.net>, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026.
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-05-25 08:39+0300\n"
+@@ -528,12 +528,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Програма <application>%1</application> спробувала розпочати сеанс віддаленої "
+ "стільниці, але віддалена стільниця у цій системі недоступна. Переконайтеся, "
+ "що ви запускаєте сеанс Wayland із сумісним засобом керування вікнами, таким "
+-"як KWin."
++"як NWin."
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -679,12 +679,12 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "Програма <application>%1</application> спробувала розпочати сеанс спільного "
+ "використання екрана, але у цій системі спільне використання недоступне. "
+ "Переконайтеся, що ви запускаєте сеанс Wayland із сумісним засобом керування "
+-"вікнами, таким як KWin."
++"вікнами, таким як NWin."
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/zh_CN/xdg-desktop-portal-kde.po b/po/zh_CN/nwin-desktop-portal.po
+similarity index 99%
+rename from po/zh_CN/xdg-desktop-portal-kde.po
+rename to po/zh_CN/nwin-desktop-portal.po
+index 38c75e1..05ebbb0 100644
+--- a/po/zh_CN/xdg-desktop-portal-kde.po
++++ b/po/zh_CN/nwin-desktop-portal.po
+@@ -14,7 +14,7 @@ msgstr ""
+ "X-Crowdin-Project: kdeorg\n"
+ "X-Crowdin-Project-ID: 269464\n"
+ "X-Crowdin-Language: zh-CN\n"
+-"X-Crowdin-File: /kf6-stable/messages/xdg-desktop-portal-kde/xdg-desktop-"
++"X-Crowdin-File: /kf6-stable/messages/nwin-desktop-portal/xdg-desktop-"
+ "portal-kde.pot\n"
+ "X-Crowdin-File-ID: 52876\n"
+ 
+@@ -512,10 +512,10 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "应用程序 <application>%1</application> 尝试启动远程桌面会话，但远程桌面在此系"
+-"统上不可用。请确保您正在使用 KWin 等兼容的窗口管理器来运行 Wayland 会话。"
++"统上不可用。请确保您正在使用 NWin 等兼容的窗口管理器来运行 Wayland 会话。"
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -660,10 +660,10 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "应用程序 <application>%1</application> 尝试启动屏幕共享会话，但屏幕共享在此系"
+-"统上不可用。请确保您正在使用 KWin 等兼容的窗口管理器来运行 Wayland 会话。"
++"统上不可用。请确保您正在使用 NWin 等兼容的窗口管理器来运行 Wayland 会话。"
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/po/zh_TW/xdg-desktop-portal-kde.po b/po/zh_TW/nwin-desktop-portal.po
+similarity index 99%
+rename from po/zh_TW/xdg-desktop-portal-kde.po
+rename to po/zh_TW/nwin-desktop-portal.po
+index c97e654..374e54a 100644
+--- a/po/zh_TW/xdg-desktop-portal-kde.po
++++ b/po/zh_TW/nwin-desktop-portal.po
+@@ -1,11 +1,11 @@
+ # Copyright (C) 2024 This file is copyright:
+-# This file is distributed under the same license as the xdg-desktop-portal-kde package.
++# This file is distributed under the same license as the nwin-desktop-portal package.
+ #
+ # pan93412 <pan93412@gmail.com>, 2019, 2020.
+ # SPDX-FileCopyrightText: 2023-2026 Kisaragi Hiu <mail@kisaragi-hiu.com>
+ msgid ""
+ msgstr ""
+-"Project-Id-Version: xdg-desktop-portal-kde\n"
++"Project-Id-Version: nwin-desktop-portal\n"
+ "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
+ "POT-Creation-Date: 2026-07-17 02:43+0000\n"
+ "PO-Revision-Date: 2026-06-25 23:52+0900\n"
+@@ -512,10 +512,10 @@ msgid ""
+ "The application <application>%1</application> tried to start a remote "
+ "desktop session but remote desktop is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "應用程式 <application>%1</application> 嘗試使用遠端桌面功能，但遠端桌面功能在"
+-"本系統無法使用。請確定您使用 Wayland 工作階段與支援的視窗管理員，像是 KWin。"
++"本系統無法使用。請確定您使用 Wayland 工作階段與支援的視窗管理員，像是 NWin。"
+ 
+ #: src/remotedesktop.cpp:124
+ #, kde-kuit-format
+@@ -660,10 +660,10 @@ msgid ""
+ "The application <application>%1</application> tried to start a screen "
+ "sharing session but screen sharing is not available on this system. Please "
+ "ensure you are running a Wayland session with a compatible window manager "
+-"such as KWin."
++"such as NWin."
+ msgstr ""
+ "應用程式 <application>%1</application> 嘗試進行螢幕分享，但螢幕分享在本系統無"
+-"法使用。請確定您使用 Wayland 工作階段與支援的視窗管理員，像是 KWin。"
++"法使用。請確定您使用 Wayland 工作階段與支援的視窗管理員，像是 NWin。"
+ 
+ #: src/screencast.cpp:157
+ #, kde-kuit-format
+diff --git a/src/AppChooserDialog.qml b/src/AppChooserDialog.qml
+index e209853..2925268 100644
+--- a/src/AppChooserDialog.qml
++++ b/src/AppChooserDialog.qml
+@@ -15,7 +15,7 @@ import Qt.labs.platform
+ import org.kde.kirigami as Kirigami
+ import org.kde.ki18n
+ 
+-import org.kde.xdgdesktopportal
++import org.kde.nwinportal
+ 
+ PortalDialog {
+     id: root
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 5a455b5..1b70713 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,14 +1,14 @@
+ 
+-add_definitions(-DTRANSLATION_DOMAIN="xdg-desktop-portal-kde")
++add_definitions(-DTRANSLATION_DOMAIN="nwin-desktop-portal")
+ 
+ add_subdirectory(kirigami-filepicker)
+ 
+-add_executable(xdg-desktop-portal-kde)
+-ecm_add_qml_module(xdg-desktop-portal-kde
+-    URI org.kde.xdgdesktopportal
++add_executable(nwin-desktop-portal)
++ecm_add_qml_module(nwin-desktop-portal
++    URI org.kde.nwinportal
+     VERSION 1.0
+     GENERATE_PLUGIN_SOURCE)
+-ecm_target_qml_sources(xdg-desktop-portal-kde
++ecm_target_qml_sources(nwin-desktop-portal
+     SOURCES
+         ScreenChooserDialog.qml
+         UserInfoDialog.qml
+@@ -28,7 +28,7 @@ ecm_target_qml_sources(xdg-desktop-portal-kde
+         region-select/RegionSelectOverlay.qml
+         region-select/FloatingTextBox.qml
+         region-select/FloatingBackground.qml)
+-set(xdg_desktop_portal_kde_SRCS
++set(nwin_desktop_portal_SRCS
+     access.cpp
+     accessdialog.cpp
+     accessdialog.h
+@@ -92,7 +92,7 @@ set(xdg_desktop_portal_kde_SRCS
+     waylandintegration.cpp
+     waylandintegration.h
+     waylandintegration_p.h
+-    xdg-desktop-portal-kde.cpp
++    nwin-desktop-portal.cpp
+     portalicon.cpp portalicon.h
+     dynamiclauncher.cpp dynamiclauncher.h
+     dynamiclauncherdialog.cpp dynamiclauncherdialog.h
+@@ -102,155 +102,155 @@ set(xdg_desktop_portal_kde_SRCS
+     wallpaper.cpp
+ )
+ 
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeBackground"
+     CATEGORY_NAME "xdp-kde-background"
+     HEADER background_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Background"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeNotificationInhibition"
+     CATEGORY_NAME "xdp-kde-notificationinhibition"
+     HEADER notificationinhibition_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Notification Inhibition"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeAccess"
+     CATEGORY_NAME "xdp-kde-access"
+     HEADER access_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Access"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeAccount"
+     CATEGORY_NAME "xdp-kde-account"
+     HEADER account_debug.h)
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeSettings"
+     CATEGORY_NAME "xdp-kde-settings"
+     HEADER settings_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Settings"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeAppChooser"
+     CATEGORY_NAME "xdp-kde-app-chooser"
+     HEADER appchooser_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE App Chooser"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeDesktopPortal"
+     CATEGORY_NAME "xdp-kde-desktop-portal"
+     HEADER desktopportal_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Desktop Portal"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeDynamicLauncher"
+     CATEGORY_NAME "xdp-kde-dynamic-launcher"
+     HEADER dynamiclauncher_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Dynamic Launcher"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeDynamicLauncherDialog"
+     CATEGORY_NAME "xdp-kde-dynamic-launcher-dialog"
+     HEADER dynamiclauncherdialog_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Dynamic Launcher Dialog"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeEmail"
+     CATEGORY_NAME "xdp-kde-email"
+     HEADER email_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE e-mail"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeFileChooser"
+     CATEGORY_NAME "xdp-kde-file-chooser"
+     HEADER filechooser_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE File Chooser"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeInhibit"
+     CATEGORY_NAME "xdp-kde-inhibit"
+     HEADER inhibit_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Inhibit"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdePrint"
+     CATEGORY_NAME "xdp-kde-print"
+     HEADER print_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Print"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeRemoteDesktop"
+     CATEGORY_NAME "xdp-kde-remotedesktop"
+     HEADER remotedesktop_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Remote Desktop"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeRemoteDesktopDialog"
+     CATEGORY_NAME "xdp-kde-remote-desktop-dialog"
+     HEADER remotedesktopdialog_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Remote Desktop Dialog"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgRequestKdeRequest"
+     CATEGORY_NAME "xdp-kde-request"
+     HEADER request_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Request"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeScreenCast"
+     CATEGORY_NAME "xdp-kde-screencast"
+     HEADER screencast_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Screencast"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeScreenshot"
+     CATEGORY_NAME "xdp-kde-screenshot"
+     HEADER screenshot_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Screenshot"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeScreenshotDialog"
+     CATEGORY_NAME "xdp-kde-screenshot-dialog"
+     HEADER screenshotdialog_debug.h)
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgSessionKdeSession"
+     CATEGORY_NAME "xdp-kde-session"
+     HEADER session_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Session"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKde"
+     CATEGORY_NAME "xdp-kde"
+     HEADER debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Generic"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeWaylandIntegration"
+     CATEGORY_NAME "xdp-kde-wayland-integration"
+     HEADER waylandintegration_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Wayland"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeAccessDialog"
+     CATEGORY_NAME "xdp-kde-access-dialog"
+     HEADER accessdialog_debug.h
+@@ -258,21 +258,21 @@ ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
+     EXPORT XDPKDE
+ )
+ 
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeInputCapture"
+     CATEGORY_NAME "xdp-kde-inputcapture"
+     HEADER inputcapture_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Input Capture"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeClipboard"
+     CATEGORY_NAME "xdp-kde-clipboard"
+     HEADER clipboard_debug.h
+     DESCRIPTION "XDG Desktop Portal KDE Clipboard"
+     EXPORT XDPKDE
+ )
+-ecm_qt_declare_logging_category(xdg_desktop_portal_kde_SRCS
++ecm_qt_declare_logging_category(nwin_desktop_portal_SRCS
+     IDENTIFIER "XdgDesktopPortalKdeWallpaper"
+     CATEGORY_NAME "xdp-kde-wallpaper"
+     HEADER wallpaper_debug.h
+@@ -286,7 +286,7 @@ set_source_files_properties(${kglobalaccel_xml} PROPERTIES
+     NO_NAMESPACE TRUE
+     CLASSNAME "KGlobalAccelInterface"
+ )
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ${kglobalaccel_xml} kglobalaccel_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ${kglobalaccel_xml} kglobalaccel_interface)
+ 
+ set(kglobalaccel_component_xml ${KGLOBALACCEL_DBUS_INTERFACES_DIR}/kf6_org.kde.kglobalaccel.Component.xml)
+ set_source_files_properties(${kglobalaccel_component_xml} PROPERTIES
+@@ -294,14 +294,14 @@ set_source_files_properties(${kglobalaccel_component_xml} PROPERTIES
+     NO_NAMESPACE TRUE
+     CLASSNAME "KGlobalAccelComponentInterface"
+ )
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ${kglobalaccel_component_xml} kglobalaccel_component_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ${kglobalaccel_component_xml} kglobalaccel_component_interface)
+ 
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS org.kde.KWin.TabletModeManager.xml tabletmodemanager_interface)
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS org.kde.KWin.VirtualKeyboard.xml virtualkeyboard_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS org.kde.NWin.TabletModeManager.xml tabletmodemanager_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS org.kde.NWin.VirtualKeyboard.xml virtualkeyboard_interface)
+ 
+-qt_add_dbus_adaptor(xdg_desktop_portal_kde_SRCS org.freedesktop.impl.portal.Session.xml session.h Session)
++qt_add_dbus_adaptor(nwin_desktop_portal_SRCS org.freedesktop.impl.portal.Session.xml session.h Session)
+ 
+-qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-kde
++qt6_generate_wayland_protocol_client_sources(nwin-desktop-portal
+     PRIVATE_CODE
+     FILES
+         ${PLASMA_WAYLAND_PROTOCOLS_DIR}/zkde-screencast-unstable-v1.xml
+@@ -313,22 +313,22 @@ qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-kde
+ 
+ 
+ set_source_files_properties(../data/org.freedesktop.Accounts.User.xml PROPERTIES NO_NAMESPACE TRUE)
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ../data/org.freedesktop.Accounts.User.xml user_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ../data/org.freedesktop.Accounts.User.xml user_interface)
+ 
+ set_source_files_properties(../data/org.freedesktop.portal.Documents.xml PROPERTIES NO_NAMESPACE TRUE)
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ../data/org.freedesktop.portal.Documents.xml documents_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ../data/org.freedesktop.portal.Documents.xml documents_interface)
+ 
+ set_source_files_properties(../data/org.kde.KIOFuse.VFS.xml PROPERTIES NO_NAMESPACE TRUE)
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ../data/org.kde.KIOFuse.VFS.xml fuse_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ../data/org.kde.KIOFuse.VFS.xml fuse_interface)
+ 
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ../data/org.freedesktop.Application.xml fdo_application_interface)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ../data/org.freedesktop.Application.xml fdo_application_interface)
+ 
+ set_source_files_properties(../data/org.freedesktop.impl.portal.PermissionStore.xml PROPERTIES NO_NAMESPACE TRUE INCLUDE "dbushelpers.h")
+-qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ../data/org.freedesktop.impl.portal.PermissionStore.xml permission_store)
++qt_add_dbus_interface(nwin_desktop_portal_SRCS ../data/org.freedesktop.impl.portal.PermissionStore.xml permission_store)
+ 
+-target_sources(xdg-desktop-portal-kde PRIVATE ${xdg_desktop_portal_kde_SRCS})
++target_sources(nwin-desktop-portal PRIVATE ${nwin_desktop_portal_SRCS})
+ 
+-target_link_libraries(xdg-desktop-portal-kde
++target_link_libraries(nwin-desktop-portal
+ PRIVATE
+     Qt::Core
+     Qt::GuiPrivate
+@@ -357,13 +357,13 @@ PRIVATE
+     Wayland::Client
+     PkgConfig::XKB
+ )
+-target_link_libraries(xdg-desktop-portal-kde PRIVATE Qt::PrintSupportPrivate Qt::GuiPrivate)
++target_link_libraries(nwin-desktop-portal PRIVATE Qt::PrintSupportPrivate Qt::GuiPrivate)
+ 
+-install(TARGETS xdg-desktop-portal-kde DESTINATION ${KDE_INSTALL_LIBEXECDIR})
++install(TARGETS nwin-desktop-portal DESTINATION ${KDE_INSTALL_LIBEXECDIR})
+ 
+ install(FILES
+-    xdg-desktop-portal-kde.notifyrc
++    nwin-desktop-portal.notifyrc
+     DESTINATION ${KDE_INSTALL_KNOTIFYRCDIR})
+ 
+-ecm_qt_install_logging_categories(EXPORT XDPKDE FILE xdp-kde.categories DESTINATION ${KDE_INSTALL_LOGGINGCATEGORIESDIR})
++ecm_qt_install_logging_categories(EXPORT XDPKDE FILE xdp-nwin.categories DESTINATION ${KDE_INSTALL_LOGGINGCATEGORIESDIR})
+ 
+diff --git a/src/WallpaperDialog.qml b/src/WallpaperDialog.qml
+index 9ee4ff1..e8e5aca 100644
+--- a/src/WallpaperDialog.qml
++++ b/src/WallpaperDialog.qml
+@@ -7,7 +7,7 @@ import QtQuick
+ import QtQuick.Controls as QQC
+ import QtQuick.Layouts
+ import org.kde.kirigami as Kirigami
+-import org.kde.xdgdesktopportal
++import org.kde.nwinportal
+ import org.kde.ki18n
+ 
+ PortalDialog
+diff --git a/src/inputcapture.cpp b/src/inputcapture.cpp
+index 2b2b41d..3e7a92f 100644
+--- a/src/inputcapture.cpp
++++ b/src/inputcapture.cpp
+@@ -33,21 +33,21 @@
+ 
+ using namespace Qt::StringLiterals;
+ 
+-static QString kwinService()
++static QString nwinService()
+ {
+-    return u"org.kde.KWin"_s;
++    return u"org.kde.NWin"_s;
+ }
+ 
+-constexpr int kwinDBusTimeout = 3000;
++constexpr int nwinDBusTimeout = 3000;
+ 
+-static QString kwinInputCapturePath()
++static QString nwinInputCapturePath()
+ {
+-    return u"/org/kde/KWin/EIS/InputCapture"_s;
++    return u"/org/kde/NWin/EIS/InputCapture"_s;
+ }
+ 
+-static QString kwinInputCaptureManagerInterface()
++static QString nwinInputCaptureManagerInterface()
+ {
+-    return u"org.kde.KWin.EIS.InputCaptureManager"_s;
++    return u"org.kde.NWin.EIS.InputCaptureManager"_s;
+ }
+ 
+ QDBusArgument &operator<<(QDBusArgument &argument, const InputCapturePortal::zone &zone)
+@@ -78,19 +78,19 @@ InputCapturePortal::InputCapturePortal(QObject *parent)
+ 
+ bool InputCapturePortal::setupInputCaptureSession(InputCaptureSession *session, Capabilities capabilities)
+ {
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), kwinInputCapturePath(), kwinInputCaptureManagerInterface(), u"addInputCapture"_s);
++    auto msg = QDBusMessage::createMethodCall(nwinService(), nwinInputCapturePath(), nwinInputCaptureManagerInterface(), u"addInputCapture"_s);
+     msg << capabilities.toInt();
+-    QDBusReply<QDBusObjectPath> reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kwinDBusTimeout);
++    QDBusReply<QDBusObjectPath> reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, nwinDBusTimeout);
+     if (!reply.isValid()) {
+-        qCWarning(XdgDesktopPortalKdeInputCapture) << "Failed to create KWin input capture:" << reply.error();
++        qCWarning(XdgDesktopPortalKdeInputCapture) << "Failed to create NWin input capture:" << reply.error();
+         return false;
+     }
+     session->connect(reply.value());
+ 
+     connect(session, &Session::closed, session, [session] {
+-        auto msg = QDBusMessage::createMethodCall(kwinService(), kwinInputCapturePath(), kwinInputCaptureManagerInterface(), u"removeInputCapture"_s);
+-        msg << session->kwinInputCapture();
+-        QDBusConnection::sessionBus().call(msg, QDBus::Block, kwinDBusTimeout);
++        auto msg = QDBusMessage::createMethodCall(nwinService(), nwinInputCapturePath(), nwinInputCaptureManagerInterface(), u"removeInputCapture"_s);
++        msg << session->nwinInputCapture();
++        QDBusConnection::sessionBus().call(msg, QDBus::Block, nwinDBusTimeout);
+     });
+     connect(session, &InputCaptureSession::disabled, this, [this, session] {
+         session->state = State::Disabled;
+@@ -107,7 +107,7 @@ bool InputCapturePortal::setupInputCaptureSession(InputCaptureSession *session,
+         qCDebug(XdgDesktopPortalKdeInputCapture) << "Activated session" << session->handle() << "acitvation_id" << activationId << "cursor_position"
+                                                  << cursorPosition;
+ 
+-        const auto disableShortcuts = KGlobalAccel::self()->globalShortcut(u"kwin"_s, u"disableInputCapture"_s);
++        const auto disableShortcuts = KGlobalAccel::self()->globalShortcut(u"nwin"_s, u"disableInputCapture"_s);
+         // Even if the user removed all sequences for this, we use the default action to have an escape hatch
+         // Unfortunately KGlobalAccel doesnt have a method to retrieve the default shortcut for another component
+         const QKeySequence disableSequence = disableShortcuts.value(0, QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_Escape));
+@@ -543,9 +543,9 @@ uint InputCapturePortal::Release(const QDBusObjectPath &session_handle, const QS
+     return PortalResponse::Success;
+ }
+ 
+-static QString kwinInputCaptureInterface()
++static QString nwinInputCaptureInterface()
+ {
+-    return u"org.kde.KWin.EIS.InputCapture"_s;
++    return u"org.kde.NWin.EIS.InputCapture"_s;
+ }
+ 
+ InputCaptureSession::InputCaptureSession(QObject *parent, const QString &appId, const QString &path)
+@@ -566,16 +566,16 @@ void InputCaptureSession::clearBarriers()
+     m_barriers.clear();
+ }
+ 
+-QDBusObjectPath InputCaptureSession::kwinInputCapture() const
++QDBusObjectPath InputCaptureSession::nwinInputCapture() const
+ {
+-    return m_kwinInputCapture;
++    return m_nwinInputCapture;
+ }
+ 
+ void InputCaptureSession::connect(const QDBusObjectPath &path)
+ {
+-    m_kwinInputCapture = path;
++    m_nwinInputCapture = path;
+     auto connectSignal = [this](const QString &signalName, const char *slot) {
+-        QDBusConnection::sessionBus().connect(kwinService(), m_kwinInputCapture.path(), kwinInputCaptureInterface(), signalName, this, slot);
++        QDBusConnection::sessionBus().connect(nwinService(), m_nwinInputCapture.path(), nwinInputCaptureInterface(), signalName, this, slot);
+     };
+     connectSignal(u"disabled"_s, SIGNAL(disabled()));
+     connectSignal(u"activated"_s, SIGNAL(activated(uint, uint, QPointF)));
+@@ -584,28 +584,28 @@ void InputCaptureSession::connect(const QDBusObjectPath &path)
+ 
+ QDBusPendingReply<void> InputCaptureSession::enable()
+ {
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), m_kwinInputCapture.path(), kwinInputCaptureInterface(), u"enable"_s);
++    auto msg = QDBusMessage::createMethodCall(nwinService(), m_nwinInputCapture.path(), nwinInputCaptureInterface(), u"enable"_s);
+     msg << QVariant::fromValue(m_barriers);
+-    return QDBusConnection::sessionBus().asyncCall(msg, kwinDBusTimeout);
++    return QDBusConnection::sessionBus().asyncCall(msg, nwinDBusTimeout);
+ }
+ 
+ QDBusPendingReply<void> InputCaptureSession::disable()
+ {
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), m_kwinInputCapture.path(), kwinInputCaptureInterface(), u"disable"_s);
+-    return QDBusConnection::sessionBus().asyncCall(msg, kwinDBusTimeout);
++    auto msg = QDBusMessage::createMethodCall(nwinService(), m_nwinInputCapture.path(), nwinInputCaptureInterface(), u"disable"_s);
++    return QDBusConnection::sessionBus().asyncCall(msg, nwinDBusTimeout);
+ }
+ 
+ QDBusPendingReply<void> InputCaptureSession::release(const QPointF &cusorPosition, bool applyPosition)
+ {
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), m_kwinInputCapture.path(), kwinInputCaptureInterface(), u"release"_s);
++    auto msg = QDBusMessage::createMethodCall(nwinService(), m_nwinInputCapture.path(), nwinInputCaptureInterface(), u"release"_s);
+     msg << cusorPosition << applyPosition;
+-    return QDBusConnection::sessionBus().asyncCall(msg, kwinDBusTimeout);
++    return QDBusConnection::sessionBus().asyncCall(msg, nwinDBusTimeout);
+ }
+ 
+ QDBusPendingReply<QDBusUnixFileDescriptor> InputCaptureSession::connectToEIS()
+ {
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), m_kwinInputCapture.path(), kwinInputCaptureInterface(), u"connectToEIS"_s);
+-    return QDBusConnection::sessionBus().asyncCall(msg, kwinDBusTimeout);
++    auto msg = QDBusMessage::createMethodCall(nwinService(), m_nwinInputCapture.path(), nwinInputCaptureInterface(), u"connectToEIS"_s);
++    return QDBusConnection::sessionBus().asyncCall(msg, nwinDBusTimeout);
+ }
+ 
+ void InputCaptureSession::setClipboardEnabled(bool enabled)
+diff --git a/src/inputcapture.h b/src/inputcapture.h
+index aea631b..ca7daaf 100644
+--- a/src/inputcapture.h
++++ b/src/inputcapture.h
+@@ -129,7 +129,7 @@ public:
+     InputCapturePortal::State state;
+ 
+     void connect(const QDBusObjectPath &path);
+-    QDBusObjectPath kwinInputCapture() const;
++    QDBusObjectPath nwinInputCapture() const;
+ 
+     QDBusPendingReply<void> enable();
+     QDBusPendingReply<void> disable();
+@@ -150,7 +150,7 @@ Q_SIGNALS:
+ 
+ private:
+     bool m_clipboardEnabled = false;
+-    QDBusObjectPath m_kwinInputCapture;
++    QDBusObjectPath m_nwinInputCapture;
+     QList<std::tuple<uint, QPoint, QPoint>> m_barriers;
+ };
+ 
+diff --git a/src/inputcapturebarrier.cpp b/src/inputcapturebarrier.cpp
+index e3b85fd..bcf2a97 100644
+--- a/src/inputcapturebarrier.cpp
++++ b/src/inputcapturebarrier.cpp
+@@ -55,7 +55,7 @@ std::variant<BarrierFailureReason, QPair<QPoint, QPoint>> checkAndMakeBarrier(in
+     }
+     if (onRightEdge) {
+         // Barriers on right/top edge will have a coordinate of just past the screen (on 1920 pixel wide screen at 0x0 1920)
+-        // We send coordinates on the screen to KWin which is consistent with the other case which sends the coordinate
++        // We send coordinates on the screen to NWin which is consistent with the other case which sends the coordinate
+         // of the first row/column of pixels
+         --x1;
+         --x2;
+diff --git a/src/xdg-desktop-portal-kde.cpp b/src/nwin-desktop-portal.cpp
+similarity index 88%
+rename from src/xdg-desktop-portal-kde.cpp
+rename to src/nwin-desktop-portal.cpp
+index d3be514..0af50a1 100644
+--- a/src/xdg-desktop-portal-kde.cpp
++++ b/src/nwin-desktop-portal.cpp
+@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
+     QCommandLineOption replaceOption(u"replace"_s, u"Replace running instance"_s);
+     parser.addOption(replaceOption);
+ 
+-    KAboutData about(QStringLiteral("xdg-desktop-portal-kde"), QString(), QStringLiteral(XDPK_VERSION_STRING));
+-    about.setDesktopFileName(QStringLiteral("org.freedesktop.impl.portal.desktop.kde"));
++    KAboutData about(QStringLiteral("nwin-desktop-portal"), QString(), QStringLiteral(XDPK_VERSION_STRING));
++    about.setDesktopFileName(QStringLiteral("org.freedesktop.impl.portal.desktop.nwin"));
+     about.setupCommandLine(&parser);
+     KAboutData::setApplicationData(about);
+ 
+@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
+     const auto dbusQueueOption = parser.isSet(replaceOption) ? QDBusConnectionInterface::ReplaceExistingService : QDBusConnectionInterface::DontQueueService;
+ 
+     QDBusConnection sessionBus = QDBusConnection::sessionBus();
+-    if (sessionBus.interface()->registerService(u"org.freedesktop.impl.portal.desktop.kde"_s, dbusQueueOption, QDBusConnectionInterface::AllowReplacement)) {
++    if (sessionBus.interface()->registerService(u"org.freedesktop.impl.portal.desktop.nwin"_s, dbusQueueOption, QDBusConnectionInterface::AllowReplacement)) {
+         DesktopPortal *desktopPortal = new DesktopPortal(&a);
+         if (sessionBus.registerObject(QStringLiteral("/org/freedesktop/portal/desktop"), desktopPortal, QDBusConnection::ExportAdaptors)) {
+             qCDebug(XdgDesktopPortalKde) << "Desktop portal registered successfully";
+@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
+             qCDebug(XdgDesktopPortalKde) << "Failed to register desktop portal";
+         }
+     } else {
+-        qCDebug(XdgDesktopPortalKde) << "Failed to register org.freedesktop.impl.portal.desktop.kde service";
++        qCDebug(XdgDesktopPortalKde) << "Failed to register org.freedesktop.impl.portal.desktop.nwin service";
+         return 1;
+     }
+ 
+diff --git a/src/xdg-desktop-portal-kde.notifyrc b/src/nwin-desktop-portal.notifyrc
+similarity index 100%
+rename from src/xdg-desktop-portal-kde.notifyrc
+rename to src/nwin-desktop-portal.notifyrc
+diff --git a/src/org.kde.KWin.TabletModeManager.xml b/src/org.kde.NWin.TabletModeManager.xml
+similarity index 91%
+rename from src/org.kde.KWin.TabletModeManager.xml
+rename to src/org.kde.NWin.TabletModeManager.xml
+index 3af1ad9..ec620d3 100644
+--- a/src/org.kde.KWin.TabletModeManager.xml
++++ b/src/org.kde.NWin.TabletModeManager.xml
+@@ -5,7 +5,7 @@
+   SPDX-FileCopyrightText: None
+ -->
+ <node>
+-  <interface name="org.kde.KWin.TabletModeManager">
++  <interface name="org.kde.NWin.TabletModeManager">
+     <property name="tabletModeAvailable" type="b" access="read"/>
+     <property name="tabletMode" type="b" access="read"/>
+     <signal name="tabletModeAvailableChanged">
+diff --git a/src/org.kde.KWin.VirtualKeyboard.xml b/src/org.kde.NWin.VirtualKeyboard.xml
+similarity index 95%
+rename from src/org.kde.KWin.VirtualKeyboard.xml
+rename to src/org.kde.NWin.VirtualKeyboard.xml
+index d97e26b..f2f5396 100644
+--- a/src/org.kde.KWin.VirtualKeyboard.xml
++++ b/src/org.kde.NWin.VirtualKeyboard.xml
+@@ -5,7 +5,7 @@
+   SPDX-FileCopyrightText: None
+ -->
+ <node>
+-  <interface name="org.kde.kwin.VirtualKeyboard">
++  <interface name="org.kde.NWin.VirtualKeyboard">
+     <property name="available" type="b" access="read"/>
+     <property name="enabled" type="b" access="readwrite"/>
+     <property name="active" type="b" access="readwrite"/>
+diff --git a/src/outputsmodel.cpp b/src/outputsmodel.cpp
+index 818be55..1762e2f 100644
+--- a/src/outputsmodel.cpp
++++ b/src/outputsmodel.cpp
+@@ -158,7 +158,7 @@ OutputsModel::OutputsModel(Options o, QObject *parent)
+         const QString uniqueId = QStringLiteral("%1x%2").arg(pos.x()).arg(pos.y());
+ 
+         // set up an async wallpaper grab
+-        QString dirPath = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + u"/xdg-desktop-portal-kde/screen-grabs";
++        QString dirPath = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + u"/nwin-desktop-portal/screen-grabs";
+         QDir().mkpath(dirPath);
+         QString path = dirPath + u"/%1.XXXXXX.webp"_s.arg(uniqueId);
+         auto temporaryFile = std::make_shared<QTemporaryFile>(path);
+diff --git a/src/quickdialog.cpp b/src/quickdialog.cpp
+index b3459f5..f032073 100644
+--- a/src/quickdialog.cpp
++++ b/src/quickdialog.cpp
+@@ -29,7 +29,7 @@ void QuickDialog::create(const QString &componentName, const QVariantMap &props)
+     KLocalization::setupLocalizedContext(engine);
+ 
+     engine->setInitialProperties(props);
+-    engine->loadFromModule("org.kde.xdgdesktopportal"_L1, componentName);
++    engine->loadFromModule("org.kde.nwinportal"_L1, componentName);
+ 
+     connect(engine, &QQmlEngine::warnings, this, [](const QList<QQmlError> &warnings) {
+         for (const QQmlError &warning : warnings) {
+diff --git a/src/region-select/SelectionEditor.cpp b/src/region-select/SelectionEditor.cpp
+index 89464f4..6e7c0a5 100644
+--- a/src/region-select/SelectionEditor.cpp
++++ b/src/region-select/SelectionEditor.cpp
+@@ -116,7 +116,7 @@ void SelectionEditor::showViews()
+         view->create();
+         view->setScreen(screen);
+ 
+-        view->loadFromModule("org.kde.xdgdesktopportal", "RegionSelectOverlay");
++        view->loadFromModule("org.kde.nwinportal", "RegionSelectOverlay");
+         view->installEventFilter(this);
+ 
+         view->setResizeMode(QQuickView::SizeRootObjectToView);
+diff --git a/src/remotedesktop.cpp b/src/remotedesktop.cpp
+index 5afe3fd..883b856 100644
+--- a/src/remotedesktop.cpp
++++ b/src/remotedesktop.cpp
+@@ -74,19 +74,19 @@ bool isAppMegaAuthorized(const QString &app_id)
+ 
+ } // namespace
+ 
+-static QString kwinService()
++static QString nwinService()
+ {
+-    return QStringLiteral("org.kde.KWin");
++    return QStringLiteral("org.kde.NWin");
+ }
+ 
+-static QString kwinRemoteDesktopPath()
++static QString nwinRemoteDesktopPath()
+ {
+-    return QStringLiteral("/org/kde/KWin/EIS/RemoteDesktop");
++    return QStringLiteral("/org/kde/NWin/EIS/RemoteDesktop");
+ }
+ 
+-static QString kwinRemoteDesktopInterface()
++static QString nwinRemoteDesktopInterface()
+ {
+-    return QStringLiteral("org.kde.KWin.EIS.RemoteDesktop");
++    return QStringLiteral("org.kde.NWin.EIS.RemoteDesktop");
+ }
+ 
+ RemoteDesktopPortal::RemoteDesktopPortal(QObject *parent)
+@@ -118,7 +118,7 @@ uint RemoteDesktopPortal::CreateSession(const QDBusObjectPath &handle,
+             .title = i18nc("@title:window", "Remote Desktop Not Available"),
+             .genericText = xi18nc("@info",
+                                   "The application <application>%1</application> tried to start a remote desktop session but remote desktop is not available "
+-                                  "on this system. Please ensure you are running a Wayland session with a compatible window manager such as KWin.",
++                                  "on this system. Please ensure you are running a Wayland session with a compatible window manager such as NWin.",
+                                   appName),
+             .x11Text = xi18nc("@info",
+                               "The application <application>%1</application> tried to start a remote desktop session but remote desktop is not available in "
+@@ -137,7 +137,7 @@ uint RemoteDesktopPortal::CreateSession(const QDBusObjectPath &handle,
+ 
+     connect(session, &Session::closed, [session] {
+         if (session->eisCookie()) {
+-            auto msg = QDBusMessage::createMethodCall(kwinService(), kwinRemoteDesktopPath(), kwinRemoteDesktopInterface(), QStringLiteral("disconnect"));
++            auto msg = QDBusMessage::createMethodCall(nwinService(), nwinRemoteDesktopPath(), nwinRemoteDesktopInterface(), QStringLiteral("disconnect"));
+             msg.setArguments({session->eisCookie()});
+             QDBusConnection::sessionBus().send(msg);
+         }
+@@ -504,7 +504,7 @@ RemoteDesktopPortal::ConnectToEIS(const QDBusObjectPath &session_handle, const Q
+         return QDBusUnixFileDescriptor();
+     }
+ 
+-    auto msg = QDBusMessage::createMethodCall(kwinService(), kwinRemoteDesktopPath(), kwinRemoteDesktopInterface(), QStringLiteral("connectToEIS"));
++    auto msg = QDBusMessage::createMethodCall(nwinService(), nwinRemoteDesktopPath(), nwinRemoteDesktopInterface(), QStringLiteral("connectToEIS"));
+     msg.setArguments({static_cast<int>(session->deviceTypes())});
+     // Using pending reply for multiple return values
+     QDBusPendingReply<QDBusUnixFileDescriptor, int> reply = QDBusConnection::sessionBus().call(msg);
+diff --git a/src/screencast.cpp b/src/screencast.cpp
+index 02df870..ee86745 100644
+--- a/src/screencast.cpp
++++ b/src/screencast.cpp
+@@ -151,7 +151,7 @@ uint ScreenCastPortal::CreateSession(const QDBusObjectPath &handle,
+             .title = i18nc("@title:window", "Screen Sharing Not Available"),
+             .genericText = xi18nc("@info",
+                                   "The application <application>%1</application> tried to start a screen sharing session but screen sharing is not available "
+-                                  "on this system. Please ensure you are running a Wayland session with a compatible window manager such as KWin.",
++                                  "on this system. Please ensure you are running a Wayland session with a compatible window manager such as NWin.",
+                                   appName),
+             .x11Text = xi18nc("@info",
+                               "The application <application>%1</application> tried to start a screen sharing session but screen sharing is not available in "
+diff --git a/src/screencasting.cpp b/src/screencasting.cpp
+index 934419c..e35cc03 100644
+--- a/src/screencasting.cpp
++++ b/src/screencasting.cpp
+@@ -172,7 +172,7 @@ Screencasting::createVirtualOutputStream(const QString &name, const QString &des
+     } else {
+         stream->d->init(d->stream_virtual_output(name, s.width(), s.height(), wl_fixed_from_double(scale), mode));
+     }
+-    // KWin adds "Virtual-" to virtual screen naems
++    // NWin adds "Virtual-" to virtual screen naems
+     const QString screenId = QLatin1StringView("Virtual-") + name;
+     connect(qGuiApp, &QGuiApplication::screenAdded, stream, [stream, screenId](const QScreen *screen) {
+         if (screen->name() == screenId) {
+diff --git a/src/screenshot.cpp b/src/screenshot.cpp
+index 9cb39f3..d0f2756 100644
+--- a/src/screenshot.cpp
++++ b/src/screenshot.cpp
+@@ -143,9 +143,9 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
+     qCDebug(XdgDesktopPortalKdeScreenshot) << "    parent_window: " << parent_window;
+     qCDebug(XdgDesktopPortalKdeScreenshot) << "    options: " << options;
+ 
+-    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
+                                                       QStringLiteral("/ColorPicker"),
+-                                                      QStringLiteral("org.kde.kwin.ColorPicker"),
++                                                      QStringLiteral("org.kde.NWin.ColorPicker"),
+                                                       QStringLiteral("pick"));
+     QDBusReply<QColor> reply = QDBusConnection::sessionBus().call(msg);
+     if (reply.isValid() && !reply.error().isValid()) {
+diff --git a/src/screenshotdialog.cpp b/src/screenshotdialog.cpp
+index 521a43f..0c23060 100644
+--- a/src/screenshotdialog.cpp
++++ b/src/screenshotdialog.cpp
+@@ -201,9 +201,9 @@ QFuture<QImage> ScreenshotDialog::takeScreenshot()
+     arguments.append(options);
+     arguments.append(QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1])));
+ 
+-    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin.ScreenShot2"),
+-                                                          QStringLiteral("/org/kde/KWin/ScreenShot2"),
+-                                                          QStringLiteral("org.kde.KWin.ScreenShot2"),
++    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin.ScreenShot2"),
++                                                          QStringLiteral("/org/kde/NWin/ScreenShot2"),
++                                                          QStringLiteral("org.kde.NWin.ScreenShot2"),
+                                                           method);
+     message.setArguments(arguments);
+ 
+diff --git a/src/settings.cpp b/src/settings.cpp
+index 7bdccb0..3c47360 100644
+--- a/src/settings.cpp
++++ b/src/settings.cpp
+@@ -63,21 +63,21 @@ class VirtualKeyboardSettings : public SettingsModule
+ public:
+     explicit VirtualKeyboardSettings(QObject *parent = nullptr)
+         : SettingsModule(parent)
+-        , m_interface(u"org.kde.KWin"_s, u"/VirtualKeyboard"_s, QDBusConnection::sessionBus())
++        , m_interface(u"org.kde.NWin"_s, u"/VirtualKeyboard"_s, QDBusConnection::sessionBus())
+     {
+-        connect(&m_interface, &OrgKdeKwinVirtualKeyboardInterface::activeChanged, this, [this]() {
++        connect(&m_interface, &OrgKdeNWinVirtualKeyboardInterface::activeChanged, this, [this]() {
+             Q_EMIT settingChanged(group(), KEY_ACTIVE, QDBusVariant(readInternal(KEY_ACTIVE)));
+         });
+-        connect(&m_interface, &OrgKdeKwinVirtualKeyboardInterface::activeClientSupportsTextInputChanged, this, [this]() {
++        connect(&m_interface, &OrgKdeNWinVirtualKeyboardInterface::activeClientSupportsTextInputChanged, this, [this]() {
+             Q_EMIT settingChanged(group(), KEY_ACTIVE_CLIENT_SUPPORTS_TEXT_INPUT, QDBusVariant(readInternal(KEY_ACTIVE_CLIENT_SUPPORTS_TEXT_INPUT)));
+         });
+-        connect(&m_interface, &OrgKdeKwinVirtualKeyboardInterface::availableChanged, this, [this]() {
++        connect(&m_interface, &OrgKdeNWinVirtualKeyboardInterface::availableChanged, this, [this]() {
+             Q_EMIT settingChanged(group(), KEY_AVAILABLE, QDBusVariant(readInternal(KEY_AVAILABLE)));
+         });
+-        connect(&m_interface, &OrgKdeKwinVirtualKeyboardInterface::enabledChanged, this, [this]() {
++        connect(&m_interface, &OrgKdeNWinVirtualKeyboardInterface::enabledChanged, this, [this]() {
+             Q_EMIT settingChanged(group(), KEY_ENABLED, QDBusVariant(readInternal(KEY_ENABLED)));
+         });
+-        connect(&m_interface, &OrgKdeKwinVirtualKeyboardInterface::visibleChanged, this, [this]() {
++        connect(&m_interface, &OrgKdeNWinVirtualKeyboardInterface::visibleChanged, this, [this]() {
+             Q_EMIT settingChanged(group(), KEY_VISIBLE, QDBusVariant(readInternal(KEY_VISIBLE)));
+         });
+     }
+@@ -119,11 +119,11 @@ private:
+         return m_interface.property(qUtf8Printable(key));
+     }
+ 
+-    OrgKdeKwinVirtualKeyboardInterface m_interface;
++    OrgKdeNWinVirtualKeyboardInterface m_interface;
+ };
+ 
+ // For consistency reasons TabletSettings have their property names changed.
+-// org.kde.TabletModel.enabled on our end is called tabletMode on the KWin side.
++// org.kde.TabletModel.enabled on our end is called tabletMode on the NWin side.
+ // As a consequence of that we do not meta program a mapping but instead manually write out the logic per key.
+ class TabletModeSettings : public SettingsModule
+ {
+@@ -134,12 +134,12 @@ class TabletModeSettings : public SettingsModule
+ public:
+     explicit TabletModeSettings(QObject *parent = nullptr)
+         : SettingsModule(parent)
+-        , m_interface(u"org.kde.KWin"_s, u"/org/kde/KWin"_s, QDBusConnection::sessionBus(), this)
++        , m_interface(u"org.kde.NWin"_s, u"/org/kde/NWin"_s, QDBusConnection::sessionBus(), this)
+     {
+-        connect(&m_interface, &OrgKdeKWinTabletModeManagerInterface::tabletModeAvailableChanged, this, [this](bool available) {
++        connect(&m_interface, &OrgKdeNWinTabletModeManagerInterface::tabletModeAvailableChanged, this, [this](bool available) {
+             Q_EMIT settingChanged(group(), KEY_AVAILABLE, QDBusVariant(available));
+         });
+-        connect(&m_interface, &OrgKdeKWinTabletModeManagerInterface::tabletModeChanged, this, [this](bool enabled) {
++        connect(&m_interface, &OrgKdeNWinTabletModeManagerInterface::tabletModeChanged, this, [this](bool enabled) {
+             Q_EMIT settingChanged(group(), KEY_ENABLED, QDBusVariant(enabled));
+             qputenv("BREEZE_IS_TABLET_MODE", enabled ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+         });
+@@ -172,7 +172,7 @@ public:
+     }
+ 
+ private:
+-    OrgKdeKWinTabletModeManagerInterface m_interface;
++    OrgKdeNWinTabletModeManagerInterface m_interface;
+ };
+ 
+ /* accent-color */

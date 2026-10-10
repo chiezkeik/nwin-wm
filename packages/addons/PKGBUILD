@@ -1,0 +1,93 @@
+# Native NWin adaptation of Arch's kdeplasma-addons 6.7.5-1 recipe.
+# Arch maintainers: Felix Yan <felixonmars@archlinux.org>, Antonio Rojas <arojas@archlinux.org>
+# Arch contributor: Andrea Scarpino <andrea@archlinux.org>
+# Stock recipe: https://gitlab.archlinux.org/archlinux/packaging/packages/kdeplasma-addons/-/blob/8a58d4284eaf4fc1b8b59b4bbdc19e63931da07b/PKGBUILD
+# Native changes: Cube/configuration/shortcuts, all five tabbox layouts, the
+# primary-output desktop script, and Color Picker IPC use NWin identities.
+# Upstream Cube translation catalogs and unrelated Plasma applets are retained.
+pkgname=nwin-kdeplasma-addons
+pkgver=6.7.5
+pkgrel=1
+pkgdesc='All kind of addons to improve your Plasma experience with native NWin'
+arch=(x86_64)
+url='https://kde.org/plasma-desktop/'
+license=(LGPL-2.0-or-later)
+depends=(glibc
+         icu
+         kauth
+         kcmutils
+         kconfig
+         kcoreaddons
+         kdbusaddons
+         kdeclarative
+         kglobalaccel
+         kguiaddons
+         kholidays
+         ki18n
+         kiconthemes
+         kio
+         kirigami
+         kirigami-addons
+         kitemmodels
+         kjobwidgets
+         knewstuff
+         knotifications
+         kpackage
+         krunner
+         kservice
+         ksvg
+         kunitconversion
+         kwidgetsaddons
+         nwin
+         kwindowsystem
+         kxmlgui
+         libgcc
+         libplasma
+         libstdc++
+         plasma-workspace
+         qt6-5compat
+         qt6-base
+         qt6-declarative
+         qt6-quick3d
+         sonnet
+         systemd-libs)
+makedepends=(corrosion
+             extra-cmake-modules
+             networkmanager-qt
+             qt6-webengine
+             git)
+optdepends=('networkmanager-qt: POTD wallpaper'
+            'qt6-webengine: dictionary and webbrowser applets'
+            'quota-tools: disk quota applet')
+groups=(plasma)
+provides=("kdeplasma-addons=$pkgver")
+conflicts=(kdeplasma-addons)
+source=("https://download.kde.org/stable/plasma/$pkgver/kdeplasma-addons-$pkgver.tar.xz"
+        "https://download.kde.org/stable/plasma/$pkgver/kdeplasma-addons-$pkgver.tar.xz.sig"
+        nwin-addons.patch)
+sha256sums=('1bc1c861487733f4944695d509c81f19b90a4d80c5825cc6df633b0313e3e8cc'
+            'fc05baef0fdf2973be5948adb49783e34fc78ee6258269bc4b800bf3f9bc003b'
+            'e34f5025daed1f126222583b01f444fafc4b73094684ed0c4f1c15e2853ed045')
+validpgpkeys=('E0A3EB202F8E57528E13E72FD7574483BB57B18D'  # Jonathan Esk-Riddell <jr@jriddell.org>
+              '0AAC775BB6437A8D9AF7A3ACFE0784117FBCE11D'  # Bhushan Shah <bshah@kde.org>
+              'D07BD8662C56CB291B316EB2F5675605C74E02CF'  # David Edmundson <davidedmundson@kde.org>
+              '1FA881591C26B276D7A5518EEAAF29B42A678C20') # Marco Martin <notmart@gmail.com>
+options=(!lto)
+
+prepare() {
+  cd "$srcdir/kdeplasma-addons-$pkgver"
+  git apply "$srcdir/nwin-addons.patch"
+}
+
+build() {
+  cmake -B "$srcdir/build" -S "$srcdir/kdeplasma-addons-$pkgver" \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build "$srcdir/build"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+}

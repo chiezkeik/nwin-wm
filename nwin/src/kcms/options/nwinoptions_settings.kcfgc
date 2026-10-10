@@ -1,0 +1,6 @@
+File=nwinoptions_settings.kcfg
+ClassName=NWinOptionsSettings
+IncludeFiles=options.h
+Mutators=true
+DefaultValueGetters=true
+ParentInConstructor=true

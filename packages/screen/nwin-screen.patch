@@ -1,0 +1,139 @@
+diff --git a/README.md b/README.md
+index b6f5189..b1a91f0 100644
+--- a/README.md
++++ b/README.md
+@@ -4,6 +4,15 @@ libkscreen is the screen management library for KDE Plasma Workspaces. Its prima
+ 
+ libkscreen is part of [Plasma releases][plasma-releases].
+ 
++## Native NWin integration
++
++The `nwin-libkscreen` build keeps the public KScreen library ABI and published
++Wayland output protocols. Its Wayland tablet-mode client uses
++`org.kde.NWin.TabletModeManager` at `/org/kde/NWin`. `kscreen-doctor`
++resolves `output.activeOutput` through `org.kde.NWin` at `/NWin` on Wayland;
++the independent X11 platform still uses its KWin service.
++
++
+ ## End user
+ Since this is a development library end users should instead look for support directly for the apps using this library. Please contact the support channels of your Linux distribution first. In case you find a bug in KScreen or if the bug is traced back to libkscreen, you can report it at the KDE [bug tracker][bug-tracker] (first look for duplicates).
+ 
+diff --git a/backends/kwayland/CMakeLists.txt b/backends/kwayland/CMakeLists.txt
+index f8ff079..7d62e72 100644
+--- a/backends/kwayland/CMakeLists.txt
++++ b/backends/kwayland/CMakeLists.txt
+@@ -8,7 +8,7 @@ set(wayland_SRCS
+     waylandscreen.cpp waylandscreen.h
+     ../utils.cpp ../utils.h
+ )
+-qt_add_dbus_interface(wayland_SRCS org.kde.KWin.TabletModeManager.xml tabletmodemanager_interface)
++qt_add_dbus_interface(wayland_SRCS org.kde.NWin.TabletModeManager.xml tabletmodemanager_interface)
+ 
+ ecm_qt_declare_logging_category(wayland_SRCS
+                                 HEADER kscreen_kwayland_logging.h
+diff --git a/backends/kwayland/org.kde.KWin.TabletModeManager.xml b/backends/kwayland/org.kde.NWin.TabletModeManager.xml
+similarity index 91%
+rename from backends/kwayland/org.kde.KWin.TabletModeManager.xml
+rename to backends/kwayland/org.kde.NWin.TabletModeManager.xml
+index 1daf5f0..6f27aa7 100644
+--- a/backends/kwayland/org.kde.KWin.TabletModeManager.xml
++++ b/backends/kwayland/org.kde.NWin.TabletModeManager.xml
+@@ -1,6 +1,6 @@
+ <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+ <node>
+-  <interface name="org.kde.KWin.TabletModeManager">
++  <interface name="org.kde.NWin.TabletModeManager">
+     <property name="tabletModeAvailable" type="b" access="read"/>
+     <property name="tabletMode" type="b" access="read"/>
+     <signal name="tabletModeAvailableChanged">
+diff --git a/backends/kwayland/waylandconfig.cpp b/backends/kwayland/waylandconfig.cpp
+index 7a52458..8c34a75 100644
+--- a/backends/kwayland/waylandconfig.cpp
++++ b/backends/kwayland/waylandconfig.cpp
+@@ -42,7 +42,7 @@ WaylandConfig::WaylandConfig(QObject *parent)
+     connect(m_outputRegistry.get(), &WaylandOutputDeviceRegistry::outputAdded, this, &WaylandConfig::addOutput);
+     connect(m_outputRegistry.get(), &WaylandOutputDeviceRegistry::outputRemoved, this, &WaylandConfig::removeOutput);
+ 
+-    initKWinTabletMode();
++    initNWinTabletMode();
+ 
+     if (auto waylandApp = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>()) {
+         auto display = waylandApp->display();
+@@ -55,10 +55,10 @@ WaylandConfig::~WaylandConfig()
+ {
+ }
+ 
+-void WaylandConfig::initKWinTabletMode()
++void WaylandConfig::initNWinTabletMode()
+ {
+     auto *interface =
+-        new OrgKdeKWinTabletModeManagerInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/org/kde/KWin"), QDBusConnection::sessionBus(), this);
++        new OrgKdeNWinTabletModeManagerInterface(QStringLiteral("org.kde.NWin"), QStringLiteral("/org/kde/NWin"), QDBusConnection::sessionBus(), this);
+     if (!interface->isValid()) {
+         m_tabletModeAvailable = false;
+         m_tabletModeEngaged = false;
+@@ -68,7 +68,7 @@ void WaylandConfig::initKWinTabletMode()
+     m_tabletModeAvailable = interface->tabletModeAvailable();
+     m_tabletModeEngaged = interface->tabletMode();
+ 
+-    connect(interface, &OrgKdeKWinTabletModeManagerInterface::tabletModeChanged, this, [this](bool tabletMode) {
++    connect(interface, &OrgKdeNWinTabletModeManagerInterface::tabletModeChanged, this, [this](bool tabletMode) {
+         if (m_tabletModeEngaged == tabletMode) {
+             return;
+         }
+@@ -77,7 +77,7 @@ void WaylandConfig::initKWinTabletMode()
+             Q_EMIT configChanged();
+         }
+     });
+-    connect(interface, &OrgKdeKWinTabletModeManagerInterface::tabletModeAvailableChanged, this, [this](bool available) {
++    connect(interface, &OrgKdeNWinTabletModeManagerInterface::tabletModeAvailableChanged, this, [this](bool available) {
+         if (m_tabletModeAvailable == available) {
+             return;
+         }
+diff --git a/backends/kwayland/waylandconfig.h b/backends/kwayland/waylandconfig.h
+index c5c992f..e8ddb21 100644
+--- a/backends/kwayland/waylandconfig.h
++++ b/backends/kwayland/waylandconfig.h
+@@ -45,7 +45,7 @@ Q_SIGNALS:
+ private:
+     void handleActiveChanged();
+ 
+-    void initKWinTabletMode();
++    void initNWinTabletMode();
+ 
+     void addOutput(WaylandOutputDevice *output);
+     void removeOutput(WaylandOutputDevice *output);
+diff --git a/src/doctor/doctor.cpp b/src/doctor/doctor.cpp
+index f99a03b..b4f8333 100644
+--- a/src/doctor/doctor.cpp
++++ b/src/doctor/doctor.cpp
+@@ -123,7 +123,7 @@ void Doctor::start(QCommandLineParser *parser)
+                     cout << "dpms mode for screen " << screen->name() << ": off\n";
+                 }
+                 // More correctly checking if the mode for all displays have been sent is tricky,
+-                // so this just assumes KWin sends the state for all displays in one go
++                // so this just assumes the compositor sends the state for all displays in one go
+                 QTimer::singleShot(0, qApp->quit);
+             });
+         } else {
+@@ -216,14 +216,16 @@ void Doctor::parseOutputArgs()
+ 
+                 // handle "activeOutput" as an ID to operate on the current active display
+                 if (outputQuery == QLatin1String("activeOutput")) {
+-                    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                                          QStringLiteral("/KWin"),
+-                                                                          QStringLiteral("org.kde.KWin"),
++                    const bool x11 = QGuiApplication::platformName() == QLatin1String("xcb");
++                    const QString service = x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin");
++                    QDBusMessage message = QDBusMessage::createMethodCall(service,
++                                                                          x11 ? QStringLiteral("/KWin") : QStringLiteral("/NWin"),
++                                                                          service,
+                                                                           QStringLiteral("activeOutputName"));
+ 
+                     auto reply = QDBusConnection::sessionBus().call(message);
+                     if (reply.type() == QDBusMessage::ErrorMessage) {
+-                        qCWarning(KSCREEN_DOCTOR) << "DBus error from KWin:" << reply.errorName() << reply.errorMessage();
++                        qCWarning(KSCREEN_DOCTOR) << "DBus error from" << service << ":" << reply.errorName() << reply.errorMessage();
+                         return;
+                     }
+                     auto args = reply.arguments();

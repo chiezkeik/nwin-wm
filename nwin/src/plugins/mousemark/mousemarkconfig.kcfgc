@@ -1,0 +1,5 @@
+File=mousemark.kcfg
+ClassName=MouseMarkConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

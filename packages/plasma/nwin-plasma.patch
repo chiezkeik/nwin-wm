@@ -1,0 +1,1234 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1693761..71ff621 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -124,7 +124,7 @@ set_package_properties(QALCULATE PROPERTIES
+    TYPE REQUIRED)
+ pkg_check_modules(DBus dbus-1 REQUIRED IMPORTED_TARGET)
+ 
+-find_package(KWinDBusInterface CONFIG REQUIRED)
++find_package(NWinDBusInterface CONFIG REQUIRED)
+ find_package(ScreenSaverDBusInterface CONFIG REQUIRED)
+ 
+ # Used in kcm_autostart
+@@ -391,7 +391,7 @@ add_subdirectory(lookandfeel)
+ if (INSTALL_SDDM_WAYLAND_SESSION)
+     install(FILES sddm-wayland-session/plasma-wayland.conf DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/sddm/sddm.conf.d)
+ else()
+-    message(STATUS "INSTALL_SDDM_WAYLAND_SESSION is disabled. As soon as it's installed, SDDM will default to use Wayland and KWin for its greeter session (BETA, do not deploy to final users yet).")
++    message(STATUS "INSTALL_SDDM_WAYLAND_SESSION is disabled. As soon as it's installed, SDDM will default to use Wayland and NWin for its greeter session (BETA, do not deploy to final users yet).")
+ endif()
+ 
+ install(FILES portal-configuration/kde-portals.conf DESTINATION ${KDE_INSTALL_DATADIR}/xdg-desktop-portal)
+diff --git a/applets/manage-inputmethod/qml/main.qml b/applets/manage-inputmethod/qml/main.qml
+index 9d3971d..c7e75a8 100644
+--- a/applets/manage-inputmethod/qml/main.qml
++++ b/applets/manage-inputmethod/qml/main.qml
+@@ -17,14 +17,14 @@ PlasmoidItem {
+     id: root
+ 
+     Plasmoid.onActivated: {
+-        if (!Keyboards.KWinVirtualKeyboard.available) {
++        if (!Keyboards.NWinVirtualKeyboard.available) {
+             settingsAction.trigger()
+         } else if (unsupportedState.when) {
+-            Keyboards.KWinVirtualKeyboard.forceActivate()
+-        } else if (Keyboards.KWinVirtualKeyboard.visible) {
+-            Keyboards.KWinVirtualKeyboard.active = false
++            Keyboards.NWinVirtualKeyboard.forceActivate()
++        } else if (Keyboards.NWinVirtualKeyboard.visible) {
++            Keyboards.NWinVirtualKeyboard.active = false
+         } else {
+-            Keyboards.KWinVirtualKeyboard.mode = (Keyboards.KWinVirtualKeyboard.mode + 1) % 3
++            Keyboards.NWinVirtualKeyboard.mode = (Keyboards.NWinVirtualKeyboard.mode + 1) % 3
+         }
+     }
+     preferredRepresentation: fullRepresentation
+@@ -80,7 +80,7 @@ PlasmoidItem {
+     states: [
+         State {
+             name: "unavailable"
+-            when: !Keyboards.KWinVirtualKeyboard.available
++            when: !Keyboards.NWinVirtualKeyboard.available
+             PropertyChanges {
+                 root.Plasmoid.icon: "input-keyboard-virtual-off-symbolic"
+                 root.Plasmoid.status: root.inEmbeddedContainment ? PlasmaCore.Types.HiddenStatus : PlasmaCore.Types.PassiveStatus
+@@ -89,7 +89,7 @@ PlasmoidItem {
+         },
+         State {
+             name: "disabled"
+-            when: Keyboards.KWinVirtualKeyboard.available && Keyboards.KWinVirtualKeyboard.mode === Keyboards.KWinVirtualKeyboard.Never
++            when: Keyboards.NWinVirtualKeyboard.available && Keyboards.NWinVirtualKeyboard.mode === Keyboards.NWinVirtualKeyboard.Never
+             PropertyChanges {
+                 root.Plasmoid.icon: "input-keyboard-virtual-off-symbolic"
+                 root.Plasmoid.status: PlasmaCore.Types.ActiveStatus
+@@ -99,7 +99,7 @@ PlasmoidItem {
+         State {
+             id: unsupportedState
+             name: "unsupported"
+-            when: Keyboards.KWinVirtualKeyboard.available && !Keyboards.KWinVirtualKeyboard.activeClientSupportsTextInput
++            when: Keyboards.NWinVirtualKeyboard.available && !Keyboards.NWinVirtualKeyboard.activeClientSupportsTextInput
+             // When the current client doesn't support input methods, we can force
+             // the display of the virtual keyboard so it emulates a hardware keyboard instead
+             PropertyChanges {
+@@ -110,7 +110,7 @@ PlasmoidItem {
+         },
+         State {
+             name: "visible"
+-            when: Keyboards.KWinVirtualKeyboard.available && Keyboards.KWinVirtualKeyboard.visible
++            when: Keyboards.NWinVirtualKeyboard.available && Keyboards.NWinVirtualKeyboard.visible
+             PropertyChanges {
+                 root.Plasmoid.icon: "arrow-down-symbolic"
+                 // Because the keyboard can become visible with a touch input when
+@@ -121,7 +121,7 @@ PlasmoidItem {
+         },
+         State {
+             name: "touchOnly"
+-            when: Keyboards.KWinVirtualKeyboard.available && Keyboards.KWinVirtualKeyboard.mode === Keyboards.KWinVirtualKeyboard.NonMouseInput && !Keyboards.KWinVirtualKeyboard.visible
++            when: Keyboards.NWinVirtualKeyboard.available && Keyboards.NWinVirtualKeyboard.mode === Keyboards.NWinVirtualKeyboard.NonMouseInput && !Keyboards.NWinVirtualKeyboard.visible
+             PropertyChanges {
+                 root.Plasmoid.icon: "input-keyboard-virtual-on-symbolic"
+                 root.Plasmoid.status: Kirigami.Settings.tabletMode ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
+@@ -130,7 +130,7 @@ PlasmoidItem {
+         },
+         State {
+             name: "alwaysOn"
+-            when: Keyboards.KWinVirtualKeyboard.available && Keyboards.KWinVirtualKeyboard.mode === Keyboards.KWinVirtualKeyboard.AnyInput && !Keyboards.KWinVirtualKeyboard.visible
++            when: Keyboards.NWinVirtualKeyboard.available && Keyboards.NWinVirtualKeyboard.mode === Keyboards.NWinVirtualKeyboard.AnyInput && !Keyboards.NWinVirtualKeyboard.visible
+             PropertyChanges {
+                 root.Plasmoid.icon: "input-keyboard-virtual-on-symbolic"
+                 root.Plasmoid.status: PlasmaCore.Types.ActiveStatus
+diff --git a/components/dbus/dbusservicewatcher.h b/components/dbus/dbusservicewatcher.h
+index 0f85551..dfada94 100644
+--- a/components/dbus/dbusservicewatcher.h
++++ b/components/dbus/dbusservicewatcher.h
+@@ -37,10 +37,10 @@ Q_ENUM_NS(Type)
+     DBusServiceWatcher {
+         id: effectWatcher
+         busType: BusType.Session
+-        watchedService: "org.kde.KWin.Effect.WindowView1"
++        watchedService: "org.kde.NWin.Effect.WindowView1"
+     }
+ 
+-    property bool hasWindowViewEffect: effectWatcher.registered // Whether the KWin effect is enabled
++    property bool hasWindowViewEffect: effectWatcher.registered // Whether the NWin effect is enabled
+     \endqml
+ */
+ class DBusServiceWatcher : public QObject, public QQmlParserStatus
+diff --git a/components/keyboardlayout/CMakeLists.txt b/components/keyboardlayout/CMakeLists.txt
+index b214286..d5847a0 100644
+--- a/components/keyboardlayout/CMakeLists.txt
++++ b/components/keyboardlayout/CMakeLists.txt
+@@ -4,7 +4,7 @@ set_source_files_properties(org.kde.KeyboardLayouts.xml
+         PROPERTIES INCLUDE layoutnames.h)
+ 
+ qt_add_dbus_interface(keyboardlayoutplugin_SRCS "org.kde.KeyboardLayouts.xml" keyboard_layout_interface)
+-qt_add_dbus_interface(keyboardlayoutplugin_SRCS "${KWIN_VIRTUALKEYBOARD_INTERFACE}" virtualkeyboard_interface)
++qt_add_dbus_interface(keyboardlayoutplugin_SRCS "${NWIN_VIRTUALKEYBOARD_INTERFACE}" virtualkeyboard_interface)
+ 
+ target_sources(keyboardlayoutplugin PRIVATE
+     keyboardlayout.cpp keyboardlayout.h
+diff --git a/components/keyboardlayout/virtualkeyboard.cpp b/components/keyboardlayout/virtualkeyboard.cpp
+index e4a43f6..20b0eb4 100644
+--- a/components/keyboardlayout/virtualkeyboard.cpp
++++ b/components/keyboardlayout/virtualkeyboard.cpp
+@@ -6,8 +6,8 @@
+ 
+ #include "virtualkeyboard.h"
+ 
+-KwinVirtualKeyboardInterface::KwinVirtualKeyboardInterface()
+-    : OrgKdeKwinVirtualKeyboardInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/VirtualKeyboard"), QDBusConnection::sessionBus())
++NWinVirtualKeyboardInterface::NWinVirtualKeyboardInterface()
++    : OrgKdeNWinVirtualKeyboardInterface(QStringLiteral("org.kde.NWin"), QStringLiteral("/VirtualKeyboard"), QDBusConnection::sessionBus())
+ {
+ }
+ 
+diff --git a/components/keyboardlayout/virtualkeyboard.h b/components/keyboardlayout/virtualkeyboard.h
+index 4caab11..c1c09c6 100644
+--- a/components/keyboardlayout/virtualkeyboard.h
++++ b/components/keyboardlayout/virtualkeyboard.h
+@@ -10,10 +10,10 @@
+ 
+ #include "virtualkeyboard_interface.h"
+ 
+-class KwinVirtualKeyboardInterface : public OrgKdeKwinVirtualKeyboardInterface
++class NWinVirtualKeyboardInterface : public OrgKdeNWinVirtualKeyboardInterface
+ {
+     Q_OBJECT
+-    QML_NAMED_ELEMENT(KWinVirtualKeyboard)
++    QML_NAMED_ELEMENT(NWinVirtualKeyboard)
+     QML_SINGLETON
+ 
+     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
+@@ -29,5 +29,5 @@ public:
+     };
+     Q_ENUM(VirtualKeyboardVisibility);
+ 
+-    KwinVirtualKeyboardInterface();
++    NWinVirtualKeyboardInterface();
+ };
+diff --git a/interactiveconsole/interactiveconsole.cpp b/interactiveconsole/interactiveconsole.cpp
+index 0ac6df4..f03d913 100644
+--- a/interactiveconsole/interactiveconsole.cpp
++++ b/interactiveconsole/interactiveconsole.cpp
+@@ -50,7 +50,7 @@ using namespace Qt::StringLiterals;
+ // TODO:
+ // interactive help?
+ static constexpr auto s_autosaveFileName(u"interactiveconsoleautosave.js");
+-static const QString s_kwinService = QStringLiteral("org.kde.KWin");
++static const QString s_kwinService = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin");
+ static const QString s_plasmaShellService = QStringLiteral("org.kde.plasmashell");
+ 
+ InteractiveConsole::InteractiveConsole(ConsoleMode mode, QWidget *parent)
+@@ -64,7 +64,7 @@ InteractiveConsole::InteractiveConsole(ConsoleMode mode, QWidget *parent)
+     , m_clearAction(KStandardActions::clear(this, &InteractiveConsole::clearEditor, this))
+     , m_executeAction(new QAction(QIcon::fromTheme(QStringLiteral("system-run")), i18n("&Execute"), this))
+     , m_plasmaAction(new QAction(QIcon::fromTheme(QStringLiteral("plasma")), i18nc("Toolbar Button to switch to Plasma Scripting Mode", "Plasma"), this))
+-    , m_kwinAction(new QAction(QIcon::fromTheme(QStringLiteral("kwin")), i18nc("Toolbar Button to switch to KWin Scripting Mode", "KWin"), this))
++    , m_kwinAction(new QAction(QIcon::fromTheme(QStringLiteral("preferences-system-windows")), i18nc("Toolbar Button to switch to Window Manager Scripting Mode", "Window Manager"), this))
+     , m_snippetsMenu(new QMenu(i18n("Templates"), this))
+     , m_fileDialog(nullptr)
+     , m_closeWhenCompleted(false)
+diff --git a/interactiveconsole/main.cpp b/interactiveconsole/main.cpp
+index 59a819a..5cf2c5c 100644
+--- a/interactiveconsole/main.cpp
++++ b/interactiveconsole/main.cpp
+@@ -17,7 +17,7 @@ int main(int argc, char **argv)
+ 
+     QCommandLineParser parser;
+     QCommandLineOption plasmaOpt(QStringLiteral("plasma"));
+-    QCommandLineOption kwinOpt(QStringLiteral("kwin"));
++    QCommandLineOption kwinOpt(QStringLiteral("windowmanager"));
+     parser.addOption(plasmaOpt);
+     parser.addOption(kwinOpt);
+     parser.addHelpOption();
+diff --git a/kcms/colors/accentColorService/accentColorService.cpp b/kcms/colors/accentColorService/accentColorService.cpp
+index f7ddacf..e9d7165 100644
+--- a/kcms/colors/accentColorService/accentColorService.cpp
++++ b/kcms/colors/accentColorService/accentColorService.cpp
+@@ -38,9 +38,10 @@ void AccentColorService::setAccentColor(unsigned accentColor)
+         const QString path =
+             QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("color-schemes/%1.colors").arg(m_settings->colorScheme()));
+ 
+-        auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                                  QStringLiteral("org.kde.KWin.BlendChanges"),
++        const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++        auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                                  x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                                  x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                                   QStringLiteral("start"));
+         msg << 300;
+         // This is deliberately blocking so that we ensure Kwin has processed the
+diff --git a/kcms/colors/colors.cpp b/kcms/colors/colors.cpp
+index b0d1584..56fa51a 100644
+--- a/kcms/colors/colors.cpp
++++ b/kcms/colors/colors.cpp
+@@ -449,9 +449,10 @@ void KCMColors::load()
+ 
+ void KCMColors::save()
+ {
+-    auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                              QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                              QStringLiteral("org.kde.KWin.BlendChanges"),
++    const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++    auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                              x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                              x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                               QStringLiteral("start"));
+     msg << 300;
+     // This is deliberately blocking so that we ensure Kwin has processed the
+diff --git a/kcms/colors/plasma-apply-colorscheme.cpp b/kcms/colors/plasma-apply-colorscheme.cpp
+index becc65b..55b582e 100644
+--- a/kcms/colors/plasma-apply-colorscheme.cpp
++++ b/kcms/colors/plasma-apply-colorscheme.cpp
+@@ -98,9 +98,10 @@ int main(int argc, char **argv)
+                     const QString path =
+                         QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("color-schemes/%1.colors").arg(model->selectedScheme()));
+ 
+-                    auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                              QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                                              QStringLiteral("org.kde.KWin.BlendChanges"),
++                    const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++                    auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                                              x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                                              x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                                               QStringLiteral("start"));
+                     msg << 300;
+                     // This is deliberately blocking so that we ensure Kwin has processed the
+@@ -136,9 +137,10 @@ int main(int argc, char **argv)
+             const QString path =
+                 QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("color-schemes/%1.colors").arg(settings->colorScheme()));
+ 
+-            auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                      QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                                      QStringLiteral("org.kde.KWin.BlendChanges"),
++            const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++            auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                                      x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                                      x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                                       QStringLiteral("start"));
+             msg << 300;
+             // This is deliberately blocking so that we ensure Kwin has processed the
+diff --git a/kcms/desktoptheme/kcm.cpp b/kcms/desktoptheme/kcm.cpp
+index 7b2ea73..745032a 100644
+--- a/kcms/desktoptheme/kcm.cpp
++++ b/kcms/desktoptheme/kcm.cpp
+@@ -190,9 +190,10 @@ void KCMDesktopTheme::load()
+ 
+ void KCMDesktopTheme::save()
+ {
+-    auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                              QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                              QStringLiteral("org.kde.KWin.BlendChanges"),
++    const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++    auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                              x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                              x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                               QStringLiteral("start"));
+     // Plasma theme changes are known to be slow, so make the blend take a while
+     msg << 1000;
+diff --git a/kcms/krdb/krdb.cpp b/kcms/krdb/krdb.cpp
+index 0a3fb44..38c9d60 100644
+--- a/kcms/krdb/krdb.cpp
++++ b/kcms/krdb/krdb.cpp
+@@ -331,7 +331,7 @@ int xftDpi()
+     int dpi = 0;
+ 
+     if (KWindowSystem::isPlatformWayland()) {
+-        KConfig cfg(QStringLiteral("kwinrc"));
++        KConfig cfg(QStringLiteral("nwinrc"));
+         KConfigGroup xwaylandGroup = cfg.group(QStringLiteral("Xwayland"));
+         qreal scale = xwaylandGroup.readEntry("Scale", 1.0);
+         dpi = scale * 96;
+@@ -388,7 +388,7 @@ void runRdb(unsigned int flags)
+     int cursorSize = mousecfg.readEntry("cursorSize", 24);
+ 
+     if (KWindowSystem::isPlatformWayland()) {
+-        KConfig kwinConfig(QStringLiteral("kwinrc"));
++        KConfig kwinConfig(QStringLiteral("nwinrc"));
+         KConfigGroup xwaylandGroup(&kwinConfig, u"Xwayland"_s);
+         cursorSize *= xwaylandGroup.readEntry("Scale", 1.0);
+     }
+diff --git a/kcms/nightlight/kcm.cpp b/kcms/nightlight/kcm.cpp
+index eefc7a9..b65f595 100644
+--- a/kcms/nightlight/kcm.cpp
++++ b/kcms/nightlight/kcm.cpp
+@@ -49,14 +49,14 @@ NightLightSettings *KCMNightLight::nightLightSettings() const
+ 
+ void KCMNightLight::preview(uint temperature)
+ {
+-    auto message = QDBusMessage::createMethodCall(u"org.kde.KWin.NightLight"_s, u"/org/kde/KWin/NightLight"_s, u"org.kde.KWin.NightLight"_s, u"preview"_s);
++    auto message = QDBusMessage::createMethodCall(u"org.kde.NWin.NightLight"_s, u"/org/kde/NWin/NightLight"_s, u"org.kde.NWin.NightLight"_s, u"preview"_s);
+     message.setArguments({temperature});
+     QDBusConnection::sessionBus().send(message);
+ }
+ 
+ void KCMNightLight::stopPreview()
+ {
+-    auto message = QDBusMessage::createMethodCall(u"org.kde.KWin.NightLight"_s, u"/org/kde/KWin/NightLight"_s, u"org.kde.KWin.NightLight"_s, u"stopPreview"_s);
++    auto message = QDBusMessage::createMethodCall(u"org.kde.NWin.NightLight"_s, u"/org/kde/NWin/NightLight"_s, u"org.kde.NWin.NightLight"_s, u"stopPreview"_s);
+     QDBusConnection::sessionBus().send(message);
+ }
+ }
+diff --git a/kcms/nightlight/nightlightsettings.kcfg b/kcms/nightlight/nightlightsettings.kcfg
+index 348d0b9..f9163e7 100644
+--- a/kcms/nightlight/nightlightsettings.kcfg
++++ b/kcms/nightlight/nightlightsettings.kcfg
+@@ -3,7 +3,7 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                           http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-    <kcfgfile name="kwinrc"/>
++    <kcfgfile name="nwinrc"/>
+     <group name="NightColor">
+         <entry name="ActiveEnabled" type="Bool">
+             <default>true</default>
+diff --git a/klipper/klipperpopup.cpp b/klipper/klipperpopup.cpp
+index e0c09f4..e53e68a 100644
+--- a/klipper/klipperpopup.cpp
++++ b/klipper/klipperpopup.cpp
+@@ -136,7 +136,7 @@ void KlipperPopup::positionOnScreen()
+         plasmaSurface->setRole(KWayland::Client::PlasmaShellSurface::Role::AppletPopup);
+ 
+         if (screens.size() > 1) {
+-            auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
++            auto message = QDBusMessage::createMethodCall(u"org.kde.NWin"_s, u"/NWin"_s, u"org.kde.NWin"_s, u"activeOutputName"_s);
+             QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
+             if (reply.isValid()) {
+                 const QString activeOutputName = reply.value();
+diff --git a/krunner/view.cpp b/krunner/view.cpp
+index 19cc8bb..2d5a7f6 100644
+--- a/krunner/view.cpp
++++ b/krunner/view.cpp
+@@ -168,7 +168,7 @@ void View::positionOnScreen()
+     const auto screens = QGuiApplication::screens();
+     auto screenIt = screens.cend();
+     if (KWindowSystem::isPlatformWayland() && m_floating) {
+-        auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
++        auto message = QDBusMessage::createMethodCall(u"org.kde.NWin"_s, u"/NWin"_s, u"org.kde.NWin"_s, u"activeOutputName"_s);
+         QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
+         if (reply.isValid()) {
+             const QString activeOutputName = reply.value();
+diff --git a/ksmserver/CMakeLists.txt b/ksmserver/CMakeLists.txt
+index 1a9a7b5..b0088ec 100644
+--- a/ksmserver/CMakeLists.txt
++++ b/ksmserver/CMakeLists.txt
+@@ -21,7 +21,6 @@ ecm_qt_declare_logging_category(ksmserver_SRCS HEADER ksmserver_debug.h IDENTIFI
+ 
+ qt_add_dbus_adaptor( ksmserver_SRCS org.kde.KSMServerInterface.xml server.h KSMServer )
+ qt_add_dbus_interface( ksmserver_SRCS org.kde.LogoutPrompt.xml logoutprompt_interface)
+-qt_add_dbus_interface( ksmserver_SRCS org.kde.KWin.Session.xml kwinsession_interface)
+ 
+ qt_add_dbus_interface( ksmserver_SRCS ../startkde/plasma-session/org.kde.Startup.xml startup_interface )
+ qt_add_dbus_interface( ksmserver_SRCS ../startkde/plasma-shutdown/org.kde.Shutdown.xml shutdown_interface )
+diff --git a/ksmserver/logout.cpp b/ksmserver/logout.cpp
+index bc59623..5b5cf43 100644
+--- a/ksmserver/logout.cpp
++++ b/ksmserver/logout.cpp
+@@ -51,7 +51,7 @@
+ #include <KNotification>
+ #include <KSharedConfig>
+ 
+-#include "kwinsession_interface.h"
++#include <QDBusInterface>
+ #include "logoutprompt_interface.h"
+ #include "shutdown_interface.h"
+ 
+@@ -95,7 +95,7 @@ void KSMServer::performLogout()
+         QTimer::singleShot(1000, this, &KSMServer::performLogout);
+     }
+ 
+-    auto setStateReply = m_kwinInterface->setState(KWinSessionState::Saving);
++    auto setStateReply = m_sessionInterface->asyncCall(QStringLiteral("setState"), uint(KWinSessionState::Saving));
+ 
+     state = Shutdown;
+ 
+@@ -122,7 +122,7 @@ void KSMServer::performLogout()
+ 
+         qCDebug(KSMSERVER) << "Telling KWin we're about to save session" << currentSession();
+ 
+-        auto saveSessionCall = m_kwinInterface->aboutToSaveSession(currentSession());
++        auto saveSessionCall = m_sessionInterface->asyncCall(QStringLiteral("aboutToSaveSession"), currentSession());
+         // We need to wait for KWin to save the initial state, e.g. active client and
+         // current desktop before we signal any clients to quit. They might bring up
+         // "Save changes?" prompts altering the state.
+@@ -163,7 +163,7 @@ void KSMServer::saveCurrentSession()
+     performLegacySessionSave();
+ #endif
+ 
+-    auto aboutToSaveCall = m_kwinInterface->aboutToSaveSession(currentSession());
++    auto aboutToSaveCall = m_sessionInterface->asyncCall(QStringLiteral("aboutToSaveSession"), currentSession());
+     aboutToSaveCall.waitForFinished();
+ 
+     const auto pendingClients = clients;
+@@ -281,7 +281,7 @@ void KSMServer::cancelShutdown(KSMClient *c)
+     }
+     state = Idle;
+ 
+-    m_kwinInterface->setState(KWinSessionState::Normal);
++    m_sessionInterface->asyncCall(QStringLiteral("setState"), uint(KWinSessionState::Normal));
+ 
+     Q_EMIT logoutFinished(false);
+ }
+@@ -393,7 +393,7 @@ void KSMServer::startKilling()
+     // kill all clients
+     state = Killing;
+ 
+-    m_kwinInterface->setState(KWinSessionState::Quitting);
++    m_sessionInterface->asyncCall(QStringLiteral("setState"), uint(KWinSessionState::Quitting));
+ 
+     for (KSMClient *c : std::as_const(clients)) {
+         qCDebug(KSMSERVER) << "startKilling: client " << c->program() << "(" << c->clientId() << ")";
+diff --git a/ksmserver/org.kde.NWin.Session.xml b/ksmserver/org.kde.NWin.Session.xml
+new file mode 100644
+index 0000000..1008b27
+--- /dev/null
++++ b/ksmserver/org.kde.NWin.Session.xml
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
++<node>
++   <interface name="org.kde.NWin.Session">
++      <method name="setState">
++         <!-- Session state: 0 = normal, 1 = saving, 2 = quitting. -->
++         <arg name="state" type="u" direction="in" />
++      </method>
++      <method name="loadSession">
++          <arg name="name" type="s" direction="in" />
++      </method>
++      <method name="aboutToSaveSession">
++          <arg name="name" type="s" direction="in" />
++      </method>
++      <method name="finishSaveSession">
++          <arg name="name" type="s" direction="in" />
++      </method>
++      <method name="quit">
++      </method>
++      <method name="closeWaylandWindows">
++          <arg type="b" direction="out" />
++      </method>
++   </interface>
++</node>
+diff --git a/ksmserver/plasma-ksmserver.service.in b/ksmserver/plasma-ksmserver.service.in
+index 4d45d6a..c97a394 100644
+--- a/ksmserver/plasma-ksmserver.service.in
++++ b/ksmserver/plasma-ksmserver.service.in
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=KDE Session Management Server
+ PartOf=graphical-session.target
+-After=plasma-kwin_wayland.service plasma-kcminit.service
++After=plasma-nwin_wayland.service plasma-kcminit.service
+ 
+ [Service]
+ ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ksmserver
+diff --git a/ksmserver/server.cpp b/ksmserver/server.cpp
+index 4551e59..67ab2ac 100644
+--- a/ksmserver/server.cpp
++++ b/ksmserver/server.cpp
+@@ -77,7 +77,8 @@
+ #include <krandom.h>
+ #include <startup_interface.h>
+ 
+-#include "kwinsession_interface.h"
++#include <QDBusInterface>
++#include <QDBusPendingReply>
+ 
+ #include <KUpdateLaunchEnvironmentJob>
+ 
+@@ -511,7 +512,13 @@ extern "C" int _IceTransNoListen(const char *protocol);
+ 
+ KSMServer::KSMServer(InitFlags flags)
+     : sessionGroup(QLatin1String(""))
+-    , m_kwinInterface(new OrgKdeKWinSessionInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus(), this))
++    , m_sessionInterface(new QDBusInterface(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland") ? QStringLiteral("org.kde.NWin")
++                                                                                                           : QStringLiteral("org.kde.KWin"),
++                                            QStringLiteral("/Session"),
++                                            qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland") ? QStringLiteral("org.kde.NWin.Session")
++                                                                                                             : QStringLiteral("org.kde.KWin.Session"),
++                                            QDBusConnection::sessionBus(),
++                                            this))
+     , sockets{-1, -1}
+ {
+     if (!flags.testFlag(InitFlag::NoLockScreen)) {
+@@ -885,8 +892,8 @@ void KSMServer::storeSession()
+     KConfigGroup cg(config, sessionGroup);
+     count = 0;
+ 
+-    // Tell kwin to save its state
+-    auto reply = m_kwinInterface->finishSaveSession(currentSession());
++    // Tell the compositor to save its state
++    QDBusPendingReply<> reply = m_sessionInterface->asyncCall(QStringLiteral("finishSaveSession"), currentSession());
+     reply.waitForFinished(); // boo!
+ 
+     for (KSMClient *c : std::as_const(clients)) {
+@@ -983,12 +990,12 @@ void KSMServer::restoreSession()
+ 
+     state = KSMServer::Restoring;
+ 
+-    auto reply = m_kwinInterface->loadSession(currentSession());
++    QDBusPendingReply<> reply = m_sessionInterface->asyncCall(QStringLiteral("loadSession"), currentSession());
+     auto watcher = new QDBusPendingCallWatcher(reply, this);
+     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, reply](QDBusPendingCallWatcher *watcher) {
+         watcher->deleteLater();
+         if (reply.isError()) {
+-            qWarning() << "Failed to notify kwin of current session " << reply.error().message();
++            qWarning() << "Failed to notify compositor of current session " << reply.error().message();
+         }
+         restoreLegacySession(KSharedConfig::openConfig().data());
+         tryRestore();
+diff --git a/ksmserver/server.h b/ksmserver/server.h
+index 97e36c4..71e4ef5 100644
+--- a/ksmserver/server.h
++++ b/ksmserver/server.h
+@@ -36,7 +36,7 @@ class KSMListener;
+ class KSMConnection;
+ class KSMClient;
+ 
+-class OrgKdeKWinSessionInterface;
++class QDBusInterface;
+ 
+ enum SMType {
+     SM_ERROR,
+@@ -193,7 +193,7 @@ private:
+     QList<KSMClient *> clientsToKill;
+     QList<KSMClient *> clientsToSave;
+ 
+-    OrgKdeKWinSessionInterface *m_kwinInterface;
++    QDBusInterface *m_sessionInterface;
+ 
+     int sockets[2];
+     QTemporaryFile iceAuthFile;
+diff --git a/ksplash/ksplashqml/plasma-ksplash.service.in b/ksplash/ksplashqml/plasma-ksplash.service.in
+index 95bea6c..2d379cb 100644
+--- a/ksplash/ksplashqml/plasma-ksplash.service.in
++++ b/ksplash/ksplashqml/plasma-ksplash.service.in
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Splash screen shown during boot
+ PartOf=graphical-session.target
+-After=plasma-kwin_wayland.service
++After=plasma-nwin_wayland.service
+ 
+ [Service]
+ ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ksplashqml
+diff --git a/libklookandfeel/autotests/lookandfeelmanagertest.cpp b/libklookandfeel/autotests/lookandfeelmanagertest.cpp
+index aa4b2f6..5abb4eb 100644
+--- a/libklookandfeel/autotests/lookandfeelmanagertest.cpp
++++ b/libklookandfeel/autotests/lookandfeelmanagertest.cpp
+@@ -179,11 +179,11 @@ void LookAndFeelManagerTest::testWindowSwitcher()
+ {
+     m_lookAndFeel->setWindowSwitcher(QStringLiteral("customTestValue"));
+ 
+-    KConfig config(QStringLiteral("kwinrc"));
++    KConfig config(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"));
+     KConfigGroup cg(&config, u"TabBox"_s);
+     QCOMPARE(cg.readEntry("LayoutName", QString()), QString());
+ 
+-    KConfig configDefault(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + u"/kdedefaults/kwinrc", KConfig::SimpleConfig);
++    KConfig configDefault(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? u"/kdedefaults/kwinrc"_s : u"/kdedefaults/nwinrc"_s), KConfig::SimpleConfig);
+     KConfigGroup cgd(&configDefault, u"TabBox"_s);
+     QCOMPARE(cgd.readEntry("LayoutName", QString()), QStringLiteral("customTestValue"));
+ }
+@@ -237,8 +237,8 @@ void LookAndFeelManagerTest::testSave()
+     QCOMPARE(cgd.readEntry("Theme", QString()), QStringLiteral("customTestValue"));
+     QCOMPARE(cgd.readEntry("Engine", QString()), QStringLiteral("KSplashQML"));
+ 
+-    KConfig kwinConfig(QStringLiteral("kwinrc"));
+-    KConfig kwinConfigDefault(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + u"/kdedefaults/kwinrc", KConfig::SimpleConfig);
++    KConfig kwinConfig(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"));
++    KConfig kwinConfigDefault(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? u"/kdedefaults/kwinrc"_s : u"/kdedefaults/nwinrc"_s), KConfig::SimpleConfig);
+     cg = KConfigGroup(&kwinConfig, u"TabBox"_s);
+     cgd = KConfigGroup(&kwinConfigDefault, u"TabBox"_s);
+     QCOMPARE(cg.readEntry("LayoutName", QString()), QString());
+diff --git a/libklookandfeel/klookandfeelmanager.cpp b/libklookandfeel/klookandfeelmanager.cpp
+index 5761de3..894d366 100644
+--- a/libklookandfeel/klookandfeelmanager.cpp
++++ b/libklookandfeel/klookandfeelmanager.cpp
+@@ -150,7 +150,7 @@ void KLookAndFeelManager::setWindowSwitcher(const QString &theme)
+         return;
+     }
+ 
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("TabBox"), QStringLiteral("LayoutName"), theme);
++    writeNewDefaults(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"), QStringLiteral("TabBox"), QStringLiteral("LayoutName"), theme);
+ }
+ 
+ void KLookAndFeelManager::setWindowPlacement(const QString &value)
+@@ -159,7 +159,7 @@ void KLookAndFeelManager::setWindowPlacement(const QString &value)
+         return;
+     }
+ 
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("Windows"), QStringLiteral("Placement"), value);
++    writeNewDefaults(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"), QStringLiteral("Windows"), QStringLiteral("Placement"), value);
+ }
+ 
+ void KLookAndFeelManager::setShellPackage(const QString &value)
+@@ -178,10 +178,11 @@ void KLookAndFeelManager::setWindowDecoration(const QString &library, const QStr
+         return;
+     }
+ 
+-    KSharedConfigPtr config = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
++    const QString configName = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc");
++    KSharedConfigPtr config = KSharedConfig::openConfig(configName);
+     KConfigGroup group(config, QStringLiteral("org.kde.kdecoration2"));
+ 
+-    KConfig configDefault(configDefaults(QStringLiteral("kwinrc")));
++    KConfig configDefault(configDefaults(configName));
+     KConfigGroup defaultGroup(&configDefault, QStringLiteral("org.kde.kdecoration2"));
+     writeNewDefaults(group, defaultGroup, QStringLiteral("library"), library);
+     writeNewDefaults(group, defaultGroup, QStringLiteral("theme"), theme, KConfig::Notify);
+@@ -194,8 +195,9 @@ void KLookAndFeelManager::setTitlebarLayout(const QString &leftbtns, const QStri
+         return;
+     }
+ 
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("org.kde.kdecoration2"), QStringLiteral("ButtonsOnLeft"), leftbtns, KConfig::Notify);
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("org.kde.kdecoration2"), QStringLiteral("ButtonsOnRight"), rightbtns, KConfig::Notify);
++    const QString configName = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc");
++    writeNewDefaults(configName, QStringLiteral("org.kde.kdecoration2"), QStringLiteral("ButtonsOnLeft"), leftbtns, KConfig::Notify);
++    writeNewDefaults(configName, QStringLiteral("org.kde.kdecoration2"), QStringLiteral("ButtonsOnRight"), rightbtns, KConfig::Notify);
+ }
+ 
+ void KLookAndFeelManager::setBorderSize(const QString &size)
+@@ -204,17 +206,17 @@ void KLookAndFeelManager::setBorderSize(const QString &size)
+         return;
+     }
+ 
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("org.kde.kdecoration2"), QStringLiteral("BorderSize"), size, KConfig::Notify);
++    writeNewDefaults(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"), QStringLiteral("org.kde.kdecoration2"), QStringLiteral("BorderSize"), size, KConfig::Notify);
+ }
+ 
+ void KLookAndFeelManager::setBorderlessMaximized(const QString &value)
+ {
+     if (value.isEmpty()) { // Turn borderless off for unsupported LNFs to prevent issues
+-        writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("Windows"), QStringLiteral("BorderlessMaximizedWindows"), u"false"_s, KConfig::Notify);
++        writeNewDefaults(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"), QStringLiteral("Windows"), QStringLiteral("BorderlessMaximizedWindows"), u"false"_s, KConfig::Notify);
+         return;
+     }
+ 
+-    writeNewDefaults(QStringLiteral("kwinrc"), QStringLiteral("Windows"), QStringLiteral("BorderlessMaximizedWindows"), value, KConfig::Notify);
++    writeNewDefaults(qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc"), QStringLiteral("Windows"), QStringLiteral("BorderlessMaximizedWindows"), value, KConfig::Notify);
+ }
+ 
+ void KLookAndFeelManager::setWidgetStyle(const QString &style)
+@@ -431,9 +433,10 @@ void KLookAndFeelManager::save(const KPackage::Package &package, Contents applyM
+     const Contents itemsToApply = packageContents(package) & applyMask;
+ 
+     if (itemsToApply.testFlag(Colors) && applyMask.testFlag(BlendChanges) && m_mode == Mode::Apply) {
+-        auto msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/BlendChanges"),
+-                                                  QStringLiteral("org.kde.KWin.BlendChanges"),
++        const bool x11 = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11");
++        auto msg = QDBusMessage::createMethodCall(x11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
++                                                  x11 ? QStringLiteral("/org/kde/KWin/BlendChanges") : QStringLiteral("/org/kde/NWin/BlendChanges"),
++                                                  x11 ? QStringLiteral("org.kde.KWin.BlendChanges") : QStringLiteral("org.kde.NWin.BlendChanges"),
+                                                   QStringLiteral("start"));
+         msg << 800;
+         // This is deliberately blocking so that we ensure Kwin has processed the
+diff --git a/libklookandfeel/klookandfeelmanifest.cpp b/libklookandfeel/klookandfeelmanifest.cpp
+index ef3af7c..a4ae7cb 100644
+--- a/libklookandfeel/klookandfeelmanifest.cpp
++++ b/libklookandfeel/klookandfeelmanifest.cpp
+@@ -226,11 +226,12 @@ KLookAndFeelManifest KLookAndFeelManifest::snapshot()
+     systemCG = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kcminputrc")), QStringLiteral("Mouse"));
+     manifest.setCursorTheme(systemCG.readEntry("cursorTheme", QStringLiteral("breeze_cursors")));
+ 
+-    systemCG = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("TabBox"));
++    const QString configName = qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("x11") ? QStringLiteral("kwinrc") : QStringLiteral("nwinrc");
++    systemCG = KConfigGroup(KSharedConfig::openConfig(configName), QStringLiteral("TabBox"));
+     manifest.setWindowSwitcher(systemCG.readEntry("LayoutName", QStringLiteral("org.kde.breeze.desktop")));
+     manifest.setDesktopSwitcher(systemCG.readEntry("DesktopLayout", QStringLiteral("org.kde.breeze.desktop")));
+ 
+-    systemCG = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kwinrc")), QStringLiteral("org.kde.kdecoration2"));
++    systemCG = KConfigGroup(KSharedConfig::openConfig(configName), QStringLiteral("org.kde.kdecoration2"));
+     manifest.setDecorationLibrary(systemCG.readEntry("library", QStringLiteral("org.kde.breeze")));
+     manifest.setDecorationTheme(systemCG.readEntry("theme", QString()));
+ 
+diff --git a/libtaskmanager/virtualdesktopinfo.cpp b/libtaskmanager/virtualdesktopinfo.cpp
+index 2c9800d..123afbd 100644
+--- a/libtaskmanager/virtualdesktopinfo.cpp
++++ b/libtaskmanager/virtualdesktopinfo.cpp
+@@ -81,23 +81,26 @@ protected Q_SLOTS:
+ 
+ VirtualDesktopInfo::Private::Private()
+ {
++    const bool wayland = KWindowSystem::isPlatformWayland();
++    const QString service = wayland ? QStringLiteral("org.kde.NWin") : QStringLiteral("org.kde.KWin");
++    const QString interface = wayland ? QStringLiteral("org.kde.NWin.VirtualDesktopManager") : QStringLiteral("org.kde.KWin.VirtualDesktopManager");
+     // Connect to navigationWrappingAroundChanged signal
+-    const bool connection = QDBusConnection::sessionBus().connect(QStringLiteral("org.kde.KWin"),
++    const bool connection = QDBusConnection::sessionBus().connect(service,
+                                                                   QStringLiteral("/VirtualDesktopManager"),
+-                                                                  QStringLiteral("org.kde.KWin.VirtualDesktopManager"),
++                                                                  interface,
+                                                                   QStringLiteral("navigationWrappingAroundChanged"),
+                                                                   this,
+                                                                   SLOT(navigationWrappingAroundChanged(bool)));
+     if (!connection) {
+-        qCWarning(TASKMANAGER_DEBUG) << "Could not connect to org.kde.KWin.VirtualDesktopManager.navigationWrappingAroundChanged signal";
++        qCWarning(TASKMANAGER_DEBUG) << "Could not connect to" << interface << "navigationWrappingAroundChanged signal";
+     }
+ 
+     // ...Then get the property's current value
+-    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++    QDBusMessage msg = QDBusMessage::createMethodCall(service,
+                                                       QStringLiteral("/VirtualDesktopManager"),
+                                                       QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                       QStringLiteral("Get"));
+-    msg.setArguments({QStringLiteral("org.kde.KWin.VirtualDesktopManager"), QStringLiteral("navigationWrappingAround")});
++    msg.setArguments({interface, QStringLiteral("navigationWrappingAround")});
+     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
+     QObject::connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *watcher) {
+         QDBusPendingReply<QVariant> reply = *watcher;
+diff --git a/login-sessions/CMakeLists.txt b/login-sessions/CMakeLists.txt
+index a31901a..cfbfcf9 100644
+--- a/login-sessions/CMakeLists.txt
++++ b/login-sessions/CMakeLists.txt
+@@ -1,8 +1,8 @@
+ ## For Plasma end users
+ 
+-configure_file(plasmawayland.desktop.cmake ${CMAKE_CURRENT_BINARY_DIR}/plasma.desktop)
++configure_file(plasmawayland.desktop.cmake ${CMAKE_CURRENT_BINARY_DIR}/plasma-nwin.desktop)
+ install(FILES
+-        ${CMAKE_CURRENT_BINARY_DIR}/plasma.desktop
++        ${CMAKE_CURRENT_BINARY_DIR}/plasma-nwin.desktop
+         DESTINATION ${KDE_INSTALL_DATADIR}/wayland-sessions
+ )
+ 
+diff --git a/login-sessions/plasmawayland-dev.desktop.cmake b/login-sessions/plasmawayland-dev.desktop.cmake
+index d829b81..1f34c9c 100644
+--- a/login-sessions/plasmawayland-dev.desktop.cmake
++++ b/login-sessions/plasmawayland-dev.desktop.cmake
+@@ -1,6 +1,6 @@
+ [Desktop Entry]
+-Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/plasma-dbus-run-session-if-needed @CMAKE_INSTALL_FULL_LIBEXECDIR@/startplasma-dev.sh -wayland
+-DesktopNames=KDE
++Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/plasma-dbus-run-session-if-needed @CMAKE_INSTALL_FULL_LIBEXECDIR@/startplasma-dev.sh -nwin
++DesktopNames=NWin;KDE
+ Name=Plasma (Development, Wayland ${CMAKE_INSTALL_FULL_BINDIR})
+ Name[ar]=بلازما (تطوير, ويلاند ${CMAKE_INSTALL_FULL_BINDIR})
+ Name[az]=Plasma (Tərtib mərhələsində olan Wayland ${CMAKE_INSTALL_FULL_BINDIR})
+diff --git a/login-sessions/plasmawayland.desktop.cmake b/login-sessions/plasmawayland.desktop.cmake
+index eec2f55..ded6278 100644
+--- a/login-sessions/plasmawayland.desktop.cmake
++++ b/login-sessions/plasmawayland.desktop.cmake
+@@ -1,64 +1,8 @@
+ [Desktop Entry]
+-Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/plasma-dbus-run-session-if-needed ${CMAKE_INSTALL_FULL_BINDIR}/startplasma-wayland
+-TryExec=${CMAKE_INSTALL_FULL_BINDIR}/startplasma-wayland
+-DesktopNames=KDE
+-Name=Plasma (Wayland)
+-Name[ar]=بلازما (ويلاند)
+-Name[ast]=Plasma (Wayland)
+-Name[az]=Plasma (Wayland)
+-Name[be]=Plasma (Wayland)
+-Name[bg]=Plasma (Wayland)
+-Name[ca]=Plasma (Wayland)
+-Name[ca@valencia]=Plasma (Wayland)
+-Name[cs]=Plasma (Wayland)
+-Name[da]=Plasma (Wayland)
+-Name[de]=Plasma (Wayland)
+-Name[el]=Plasma (Wayland)
+-Name[en_GB]=Plasma (Wayland)
+-Name[eo]=Plasma (Wayland)
+-Name[es]=Plasma (Wayland)
+-Name[et]=Plasma (Wayland)
+-Name[eu]=Plasma (Wayland)
+-Name[fi]=Plasma (Wayland)
+-Name[fr]=Plasma (Wayland)
+-Name[ga]=Plasma (Wayland)
+-Name[gl]=Plasma (Wayland)
+-Name[he]=פלזמה (Wayland)
+-Name[hi]=प्लाज़्मा (वेलैंड)
+-Name[hsb]=Plasma (Wayland)
+-Name[hu]=Plasma (Wayland)
+-Name[ia]=Plasma (Wayland)
+-Name[id]=Plasma (Wayland)
+-Name[is]=Plasma (Wayland)
+-Name[it]=Plasma (Wayland)
+-Name[ja]=Plasma (Wayland)
+-Name[ka]=Plasma (Wayland)
+-Name[ko]=Plasma(Wayland)
+-Name[lt]=Plasma (Wayland)
+-Name[lv]=Plasma (Wayland)
+-Name[ml]=പ്ലാസ്മ (വേലാൻഡ്)
+-Name[nb]=Plasma (Wayland)
+-Name[nl]=Plasma (Wayland)
+-Name[nn]=Plasma (Wayland)
+-Name[pa]=ਪਲਾਜ਼ਮਾ (ਵੇਅਲੈਂਡ)
+-Name[pl]=Plazma (Wayland)
+-Name[pt]=Plasma (Wayland)
+-Name[pt_BR]=Plasma (Wayland)
+-Name[ro]=Plasma (Wayland)
+-Name[ru]=Plasma (Wayland)
+-Name[sa]=प्लाज्मा (वेलैण्ड्)
+-Name[sk]=Plasma (Wayland)
+-Name[sl]=Plasma (Wayland)
+-Name[sv]=Plasma (Wayland)
+-Name[ta]=பிளாஸ்மா (Wayland)
+-Name[tg]=Плазма (Вэйленд)
+-Name[th]=Plasma (Wayland)
+-Name[tr]=Plasma (Wayland)
+-Name[ug]=Plasma (Wayland)
+-Name[uk]=Плазма (Wayland)
+-Name[vi]=Plasma (Wayland)
+-Name[zh_CN]=Plasma (Wayland)
+-Name[zh_TW]=Plasma (Wayland)
++Exec=@CMAKE_INSTALL_FULL_LIBEXECDIR@/plasma-dbus-run-session-if-needed ${CMAKE_INSTALL_FULL_BINDIR}/startplasma-nwin
++TryExec=${CMAKE_INSTALL_FULL_BINDIR}/startplasma-nwin
++DesktopNames=NWin;KDE
++Name=Plasma (NWin)
+ Comment=Plasma by KDE
+ Comment[ar]=بلازما كِيدِي
+ Comment[az]=KDE Plasma
+diff --git a/sddm-wayland-session/plasma-wayland.conf b/sddm-wayland-session/plasma-wayland.conf
+index 70ee2b7..fd67db0 100644
+--- a/sddm-wayland-session/plasma-wayland.conf
++++ b/sddm-wayland-session/plasma-wayland.conf
+@@ -4,4 +4,4 @@ GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell
+ InputMethod=
+ 
+ [Wayland]
+-CompositorCommand=kwin_wayland --no-global-shortcuts --no-lockscreen --inputmethod plasma-keyboard --locale1
++CompositorCommand=nwin_wayland --no-global-shortcuts --no-lockscreen --inputmethod plasma-keyboard --locale1
+diff --git a/shell/org.kde.plasmashell.desktop.cmake b/shell/org.kde.plasmashell.desktop.cmake
+index 20b2776..38ca466 100644
+--- a/shell/org.kde.plasmashell.desktop.cmake
++++ b/shell/org.kde.plasmashell.desktop.cmake
+@@ -45,4 +45,4 @@ NoDisplay=true
+ X-systemd-skip=true
+ 
+ X-KDE-Wayland-Interfaces=org_kde_plasma_window_management,org_kde_kwin_keystate,zkde_screencast_unstable_v1,org_kde_plasma_activation_feedback,kde_lockscreen_overlay_v1
+-X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
++X-KDE-DBUS-Restricted-Interfaces=org.kde.NWin.ScreenShot2;org.kde.KWin.ScreenShot2;
+diff --git a/shell/shellcorona.cpp b/shell/shellcorona.cpp
+index c33387b..8485a06 100644
+--- a/shell/shellcorona.cpp
++++ b/shell/shellcorona.cpp
+@@ -1782,7 +1782,7 @@ void ShellCorona::toggleWidgetExplorer()
+ {
+     auto viewIt = m_desktopViewForScreen.cbegin();
+     if (KWindowSystem::isPlatformWayland()) {
+-        auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
++        auto message = QDBusMessage::createMethodCall(u"org.kde.NWin"_s, u"/NWin"_s, u"org.kde.NWin"_s, u"activeOutputName"_s);
+         QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
+         if (reply.isValid()) {
+             const QString activeOutputName = reply.value();
+@@ -2570,7 +2570,11 @@ Plasma::Containment *ShellCorona::addPanel(const QString &plugin)
+ 
+     // find out what screen this panel should go on
+     QScreen *wantedScreen = nullptr;
+-    auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
++    const bool x11 = KWindowSystem::isPlatformX11();
++    auto message = QDBusMessage::createMethodCall(x11 ? u"org.kde.KWin"_s : u"org.kde.NWin"_s,
++                                                  x11 ? u"/KWin"_s : u"/NWin"_s,
++                                                  x11 ? u"org.kde.KWin"_s : u"org.kde.NWin"_s,
++                                                  u"activeOutputName"_s);
+     QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
+     if (reply.isValid()) {
+         const auto screens = QGuiApplication::screens();
+@@ -2999,7 +3003,11 @@ void ShellCorona::configurationChanged(const QString &path)
+ 
+ void ShellCorona::activateLauncherMenu()
+ {
+-    auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
++    const bool x11 = KWindowSystem::isPlatformX11();
++    auto message = QDBusMessage::createMethodCall(x11 ? u"org.kde.KWin"_s : u"org.kde.NWin"_s,
++                                                  x11 ? u"/KWin"_s : u"/NWin"_s,
++                                                  x11 ? u"org.kde.KWin"_s : u"org.kde.NWin"_s,
++                                                  u"activeOutputName"_s);
+     auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message));
+     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, watcher] {
+         watcher->deleteLater();
+diff --git a/startkde/CMakeLists.txt b/startkde/CMakeLists.txt
+index 0e15eeb..92df9d5 100644
+--- a/startkde/CMakeLists.txt
++++ b/startkde/CMakeLists.txt
+@@ -33,9 +33,9 @@ kconfig_target_kcfg_file(startplasma
+     MUTATORS
+ )
+ 
+-add_executable(startplasma-wayland ${START_PLASMA_COMMON_SRCS} startplasma-wayland.cpp)
++add_executable(startplasma-nwin ${START_PLASMA_COMMON_SRCS} startplasma-wayland.cpp)
+ 
+-target_link_libraries(startplasma-wayland PRIVATE
++target_link_libraries(startplasma-nwin PRIVATE
+     startplasma
+ )
+ 
+@@ -61,7 +61,7 @@ endif()
+ 
+ configure_file(config-startplasma.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-startplasma.h)
+ 
+-install(TARGETS startplasma-wayland ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
++install(TARGETS startplasma-nwin ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+ if (WITH_X11_SESSION)
+     install(TARGETS startplasma-x11 ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+ endif()
+diff --git a/startkde/README.md b/startkde/README.md
+index 1d57396..8ec7aa0 100644
+--- a/startkde/README.md
++++ b/startkde/README.md
+@@ -1,8 +1,14 @@
+ ## StartPlasma
+ 
+-`startplasma` is the main binary invoked by the login manager. It is compiled as two binaries (`startplasma-x11` and `startplasma-wayland`) with some common files. It sets up key environment variables and other core GUI-less tasks, and then triggers the main startup sequence either via requesting the plasma systemd target, or a legacy fallback via plasma-session.
++`startplasma` is the main binary invoked by the login manager. It is compiled as two binaries (`startplasma-x11` and `startplasma-nwin`) with some common files. It sets up key environment variables and other core GUI-less tasks, and then triggers the main startup sequence either via requesting the plasma systemd target, or a legacy fallback via plasma-session.
+ 
+-`startplasma` tracks the status of ksmserver (x11) or kwin_wayland (wayland) to detect when to exit. To ensure all shutdown tasks are complete, it also waits until `plasma-shutdown` exits.
++The installed `plasma-nwin.desktop` login entry is **Plasma (NWin)**. It executes the compiled `startplasma-nwin`, not an old compositor startup shim. The Wayland target requires and binds to `plasma-nwin_wayland.service`, and startup watches `org.kde.NWinWrapper` to detect session exit. The non-systemd path launches `nwin_wayland_wrapper` directly. X11 startup remains backed by the separately installed external KWin X11.
++
++To ensure all shutdown tasks are complete, startup also waits until `plasma-shutdown` exits. Native Wayland session IPC uses `org.kde.NWin.Session` on `/Session`; the X11 session retains its external KWin interface.
++
++Bundled IPC clients use `org.kde.NWin` and `/NWin` for native compositor controls. Actual Wayland compositor settings use `nwinrc`; look-and-feel packages retain their existing `[kwinrc]` theme metadata schema and apply those values to the session's compositor config. Published Wayland protocol names remain unchanged.
++
++The native session publishes `XDG_CURRENT_DESKTOP=NWin:KDE` (`DesktopNames=NWin;KDE`) so portal selection uses the separately installed native NWin backend while retaining KDE desktop recognition. X11 continues to publish `KDE` and use the stock KDE portal backend.
+ 
+ ## plasma-dbus-run-session-if-needed
+ 
+@@ -11,11 +17,11 @@ This is a workaround script for some setups. See 8475fe4545998c806704a45a7d912f7
+ ## plasma-shutdown
+ 
+ `plasma-shutdown` is a small helper invoked via DBus activation after any potential logout confirmation by the user.
+-It triggers the relevant paths to quit and save all apps via both ksmserver and KWin, abstracting the session differences between X11 and Wayland. If this is successful, then any shutdown scripts are run, and finally KWin and ksmserver are terminated. After returning success or failure, the helper exits.
++It triggers the relevant paths to quit and save all apps via both ksmserver and the session's compositor, abstracting the session differences between X11 and Wayland. If this is successful, then any shutdown scripts are run, and finally the compositor and ksmserver are terminated. After returning success or failure, the helper exits.
+ 
+ ### plasma-session
+ 
+-`plasma-session` is the legacy fallback for non-systemd users. It launches KWin, Plasma, and others in the intended order.
++`plasma-session` is the legacy fallback for non-systemd users. It launches native NWin on Wayland (external KWin on X11), Plasma, and others in the intended order.
+ It should behave as similarly to the systemd use case as possible.
+ 
+ ## session-shortcuts
+diff --git a/startkde/config-startplasma.h.cmake b/startkde/config-startplasma.h.cmake
+index e0b5975..7e2bdd8 100644
+--- a/startkde/config-startplasma.h.cmake
++++ b/startkde/config-startplasma.h.cmake
+@@ -3,7 +3,6 @@
+ #define CMAKE_INSTALL_FULL_BINDIR "@CMAKE_INSTALL_FULL_BINDIR@"
+ #define KDE_INSTALL_FULL_DATAROOTDIR "@KDE_INSTALL_FULL_DATAROOTDIR@"
+ #define CMAKE_INSTALL_FULL_LIBEXECDIR "@CMAKE_INSTALL_FULL_LIBEXECDIR@"
+-#define KWIN_WAYLAND_BIN_PATH "@KWIN_WAYLAND_BIN_PATH@"
+ 
+ #define KWIN_BIN "${KWIN_BIN}"
+ 
+diff --git a/startkde/kcminit/plasma-kcminit.service.in b/startkde/kcminit/plasma-kcminit.service.in
+index 198f81f..fb9eff6 100644
+--- a/startkde/kcminit/plasma-kcminit.service.in
++++ b/startkde/kcminit/plasma-kcminit.service.in
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=KDE Config Module Initialization
+ PartOf=graphical-session.target
+-After=plasma-kwin_wayland.service
++After=plasma-nwin_wayland.service
+ 
+ [Service]
+ ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/kcminit_startup
+diff --git a/startkde/plasma-session/startup.cpp b/startkde/plasma-session/startup.cpp
+index b66ebe7..278f1f6 100644
+--- a/startkde/plasma-session/startup.cpp
++++ b/startkde/plasma-session/startup.cpp
+@@ -159,8 +159,8 @@ Startup::Startup(QObject *parent)
+     } else {
+         // This must block until started as it sets the WAYLAND_DISPLAY/DISPLAY env variables needed for the rest of the boot
+         // fortunately it's very fast as it's just starting a wrapper
+-        StartServiceJob kwinWaylandJob(QStringLiteral("kwin_wayland_wrapper"), {QStringLiteral("--xwayland")}, QStringLiteral("org.kde.KWinWrapper"));
+-        kwinWaylandJob.exec();
++        StartServiceJob nwinWaylandJob(QStringLiteral("nwin_wayland_wrapper"), {QStringLiteral("--xwayland")}, QStringLiteral("org.kde.NWinWrapper"));
++        nwinWaylandJob.exec();
+         // kslpash is only launched in plasma-session from the wayland mode, for X it's in startplasma-x11
+ 
+         const KConfig cfg(QStringLiteral("ksplashrc"));
+diff --git a/startkde/plasma-shutdown/CMakeLists.txt b/startkde/plasma-shutdown/CMakeLists.txt
+index 49c8a61..cabfa69 100644
+--- a/startkde/plasma-shutdown/CMakeLists.txt
++++ b/startkde/plasma-shutdown/CMakeLists.txt
+@@ -13,6 +13,7 @@ qt_add_dbus_adaptor(plasma_shutdown_SRCS org.kde.Shutdown.xml shutdown.h Shutdow
+ qt_add_dbus_interface(plasma_shutdown_SRCS org.kde.Shutdown.xml shutdown_interface)
+ qt_add_dbus_interface( plasma_shutdown_SRCS ../../ksmserver/org.kde.KSMServerInterface.xml ksmserver_interface )
+ qt_add_dbus_interface( plasma_shutdown_SRCS ../../ksmserver/org.kde.KWin.Session.xml kwin_interface )
++qt_add_dbus_interface( plasma_shutdown_SRCS ../../ksmserver/org.kde.NWin.Session.xml nwin_interface )
+ 
+ add_executable(plasma-shutdown ${plasma_shutdown_SRCS})
+ 
+diff --git a/startkde/plasma-shutdown/shutdown.cpp b/startkde/plasma-shutdown/shutdown.cpp
+index 1e1a8a3..c36c751 100644
+--- a/startkde/plasma-shutdown/shutdown.cpp
++++ b/startkde/plasma-shutdown/shutdown.cpp
+@@ -10,6 +10,7 @@
+ #include "debug.h"
+ #include "ksmserver_interface.h"
+ #include "kwin_interface.h"
++#include "nwin_interface.h"
+ #include "sessionmanagementbackend.h"
+ 
+ #include "config.h"
+@@ -93,16 +94,23 @@ void Shutdown::ksmServerComplete()
+         }
+     }
+ 
+-    OrgKdeKWinSessionInterface kwinInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
+-    kwinInterface.setTimeout(INT32_MAX);
+-    auto reply = kwinInterface.closeWaylandWindows();
++    QDBusPendingReply<bool> reply;
++    if (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland")) {
++        OrgKdeNWinSessionInterface nwinInterface(QStringLiteral("org.kde.NWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
++        nwinInterface.setTimeout(INT32_MAX);
++        reply = nwinInterface.closeWaylandWindows();
++    } else {
++        OrgKdeKWinSessionInterface kwinInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
++        kwinInterface.setTimeout(INT32_MAX);
++        reply = kwinInterface.closeWaylandWindows();
++    }
+     auto watcher = new QDBusPendingCallWatcher(reply, this);
+     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *watcher) {
+         watcher->deleteLater();
+         OrgKdeKSMServerInterfaceInterface ksmserverIface(QStringLiteral("org.kde.ksmserver"), QStringLiteral("/KSMServer"), QDBusConnection::sessionBus());
+         auto reply = QDBusReply<bool>(*watcher);
+         if (!reply.isValid()) {
+-            qCWarning(PLASMA_SESSION) << "KWin failed to complete logout";
++            qCWarning(PLASMA_SESSION) << "Window manager failed to complete logout";
+             ksmserverIface.resetLogout();
+             logoutCancelled();
+             return;
+@@ -163,9 +171,15 @@ void Shutdown::logoutComplete()
+                                                   QStringLiteral("quit"));
+         QDBusConnection::sessionBus().call(msg);
+ 
+-        OrgKdeKWinSessionInterface kwinInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
+-        QDBusPendingReply<> reply = kwinInterface.quit();
+-        reply.waitForFinished();
++        if (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland")) {
++            OrgKdeNWinSessionInterface nwinInterface(QStringLiteral("org.kde.NWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
++            QDBusPendingReply<> reply = nwinInterface.quit();
++            reply.waitForFinished();
++        } else {
++            OrgKdeKWinSessionInterface kwinInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/Session"), QDBusConnection::sessionBus());
++            QDBusPendingReply<> reply = kwinInterface.quit();
++            reply.waitForFinished();
++        }
+     }
+ 
+     if (m_shutdownType == KWorkSpace::ShutdownTypeHalt) {
+diff --git a/startkde/startplasma-wayland.cpp b/startkde/startplasma-wayland.cpp
+index dcb4481..a68b74f 100644
+--- a/startkde/startplasma-wayland.cpp
++++ b/startkde/startplasma-wayland.cpp
+@@ -15,7 +15,7 @@
+ static void setupWorkarounds()
+ {
+ #if WITH_X11
+-    // Tell AWT that kwin_wayland is a non-reparenting window manager. Without this, AWT will ignore
++    // Tell AWT that nwin_wayland is a non-reparenting window manager. Without this, AWT will ignore
+     // ConfigureNotify events and java applications will paint nothing on the screen.
+     qputenv("_JAVA_AWT_WM_NONREPARENTING", "1");
+ #endif
+@@ -30,7 +30,7 @@ int main(int argc, char **argv)
+     setupWorkarounds();
+     signal(SIGTERM, sigtermHandler);
+ 
+-    // Let clients try to reconnect to kwin after a restart
++    // Let clients try to reconnect to NWin after a restart
+     qputenv("QT_WAYLAND_RECONNECT", "1");
+ 
+     // Query whether org.freedesktop.locale1 is available. If it is, try to
+@@ -66,12 +66,11 @@ int main(int argc, char **argv)
+     runEnvironmentScripts();
+ 
+     if (!qEnvironmentVariableIsSet("DBUS_SESSION_BUS_ADDRESS")) {
+-        out << "startplasmacompositor: Could not start D-Bus. Can you call qdbus?\n";
++        out << "startplasma-nwin: Could not start D-Bus. Can you call qdbus?\n";
+         return 1;
+     }
+-    setupPlasmaEnvironment();
++    setupPlasmaEnvironment(true);
+     runStartupConfig();
+-    qputenv("XDG_SESSION_TYPE", "wayland");
+ 
+     auto oldSystemdEnvironment = getSystemdEnvironment();
+     if (!syncDBusEnvironment()) {
+@@ -90,11 +89,10 @@ int main(int argc, char **argv)
+     // Anything after here is logout
+     // It is not called after shutdown/restart
+     waitForKonqi();
+-    out << "startplasma-wayland: Shutting down...\n";
+-    out << "startplasmacompositor: Shutting down...\n";
++    out << "startplasma-nwin: Shutting down...\n";
+     stopSystemdSession();
+     cleanupPlasmaEnvironment(oldSystemdEnvironment);
+-    out << "startplasmacompositor: Done.\n";
++    out << "startplasma-nwin: Done.\n";
+ 
+     return 0;
+ }
+diff --git a/startkde/startplasma-x11.cpp b/startkde/startplasma-x11.cpp
+index fe4e89d..398f12e 100644
+--- a/startkde/startplasma-x11.cpp
++++ b/startkde/startplasma-x11.cpp
+@@ -59,7 +59,7 @@ int main(int argc, char **argv)
+ 
+     out << "startkde: Starting up...\n";
+ 
+-    setupPlasmaEnvironment();
++    setupPlasmaEnvironment(false);
+ 
+     std::unique_ptr<QProcess, KillBeforeDeleter> ksplash(setupKSplash());
+     Q_UNUSED(ksplash)
+diff --git a/startkde/startplasma.cpp b/startkde/startplasma.cpp
+index cc596c8..131a8e8 100644
+--- a/startkde/startplasma.cpp
++++ b/startkde/startplasma.cpp
+@@ -392,12 +392,13 @@ static std::pair<QString, KLookAndFeelManager::Contents> determineLookAndFeel(co
+     return std::make_pair(settings.lookAndFeelPackage(), KLookAndFeelManager::AllSettings);
+ }
+ 
+-void setupPlasmaEnvironment()
++void setupPlasmaEnvironment(bool wayland)
+ {
+     qputenv("KDE_FULL_SESSION", "true");
+     qputenv("KDE_SESSION_VERSION", "6");
+     qputenv("KDE_SESSION_UID", QByteArray::number(getuid()));
+-    qputenv("XDG_CURRENT_DESKTOP", "KDE");
++    qputenv("XDG_SESSION_TYPE", wayland ? "wayland" : "x11");
++    qputenv("XDG_CURRENT_DESKTOP", wayland ? "NWin:KDE" : "KDE");
+ 
+     qputenv("KDE_APPLICATIONS_AS_SCOPE", "1");
+ 
+@@ -485,7 +486,7 @@ void cleanupPlasmaEnvironment(const std::optional<QProcessEnvironment> &oldSyste
+ 
+ // Drop session-specific variables from the systemd environment.
+ // Those can be leftovers from previous sessions, which can interfere with the session
+-// we want to start now, e.g. $DISPLAY might break kwin_wayland.
++// we want to start now, e.g. $DISPLAY might break nwin_wayland.
+ static void dropSessionVarsFromSystemdEnvironment()
+ {
+     const auto environment = getSystemdEnvironment();
+@@ -513,7 +514,7 @@ static void dropSessionVarsFromSystemdEnvironment()
+     }
+ }
+ 
+-// kwin_wayland can possibly also start dbus-activated services which need env variables.
++// nwin_wayland can possibly also start dbus-activated services which need env variables.
+ // In that case, the update in startplasma might be too late.
+ bool syncDBusEnvironment()
+ {
+@@ -712,7 +713,7 @@ bool startPlasmaSession(bool wayland)
+     // We want to exit when both ksmserver and plasma-session-shutdown have finished
+     // This also closes if ksmserver crashes unexpectedly, as in those cases plasma-shutdown is not running
+     if (wayland) {
+-        serviceWatcher.addWatchedService(QStringLiteral("org.kde.KWinWrapper"));
++        serviceWatcher.addWatchedService(QStringLiteral("org.kde.NWinWrapper"));
+     } else {
+         serviceWatcher.addWatchedService(QStringLiteral("org.kde.ksmserver"));
+     }
+diff --git a/startkde/startplasma.h b/startkde/startplasma.h
+index 9299ae7..da1200c 100644
+--- a/startkde/startplasma.h
++++ b/startkde/startplasma.h
+@@ -25,7 +25,7 @@ void setupCursor(bool wayland);
+ std::optional<QProcessEnvironment> getSystemdEnvironment();
+ void importSystemdEnvrionment();
+ void runEnvironmentScripts();
+-void setupPlasmaEnvironment();
++void setupPlasmaEnvironment(bool wayland);
+ void cleanupPlasmaEnvironment(const std::optional<QProcessEnvironment> &oldSystemdEnvironment);
+ bool syncDBusEnvironment();
+ void setupFontDpi();
+diff --git a/startkde/systemd/README.md b/startkde/systemd/README.md
+index 41dce4b..d9ec7ce 100644
+--- a/startkde/systemd/README.md
++++ b/startkde/systemd/README.md
+@@ -10,8 +10,7 @@ plasma-workspace@ is the target explicitly activated.
+ 
+ ## X11 and wayland
+ 
+-plasma-workspace@ is a template file that ends with x11 or wayland. That will then require the correct kwin_
+-startup order can be different between the two.
++`plasma-workspace-wayland.target` requires and binds to the native `plasma-nwin_wayland.service`. The X11 target retains the separate external `plasma-kwin_x11.service`; startup ordering differs between the two.
+ 
+ ## Wants & Order
+ Note that in systemd dependencies (wants/wantedby) counter-intuitively do not determine order.
+diff --git a/startkde/systemd/plasma-core.target b/startkde/systemd/plasma-core.target
+index 5b657c5..d7b1958 100644
+--- a/startkde/systemd/plasma-core.target
++++ b/startkde/systemd/plasma-core.target
+@@ -7,6 +7,6 @@ Wants=plasma-kcminit-phase1.service
+ Wants=graphical-session-pre.target
+ Wants=plasma-ksmserver.service
+ After=graphical-session-pre.target
+-After=plasma-kwin_wayland.service
++After=plasma-nwin_wayland.service
+ RefuseManualStart=yes
+ StopWhenUnneeded=true
+diff --git a/startkde/systemd/plasma-workspace-wayland.target b/startkde/systemd/plasma-workspace-wayland.target
+index d960413..e02a30f 100644
+--- a/startkde/systemd/plasma-workspace-wayland.target
++++ b/startkde/systemd/plasma-workspace-wayland.target
+@@ -1,4 +1,4 @@
+ [Unit]
+ Requires=plasma-workspace.target
+-Requires=plasma-kwin_wayland.service
+-BindsTo=plasma-kwin_wayland.service
++Requires=plasma-nwin_wayland.service
++BindsTo=plasma-nwin_wayland.service

@@ -1,0 +1,12 @@
+/*!
+    \page nwin-index.html
+    \title NWin
+
+    \section1 API Reference
+
+    \list
+        \li \l{NWin Effects}
+        \li \l{NWin C++ Classes}
+        \li \l{NWin Scripting QML Types}
+    \endlist
+*/

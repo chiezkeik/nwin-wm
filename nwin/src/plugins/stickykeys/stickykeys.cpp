@@ -1,0 +1,225 @@
+/*
+    SPDX-FileCopyrightText: 2022 Nicolas Fella <nicolas.fella@gmx.de>
+
+    SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+*/
+
+#include "stickykeys.h"
+#include "effect/effecthandler.h"
+#include "keyboard_input.h"
+#include "xkb.h"
+
+#include <QTimer>
+
+#include <KLazyLocalizedString>
+#if NWIN_BUILD_NOTIFICATIONS
+#include <KNotification>
+#endif
+
+struct Modifier
+{
+    Qt::Key key;
+    KLazyLocalizedString lockedText;
+};
+
+static const std::array<Modifier, 5> modifiers = {
+    Modifier{Qt::Key_Shift, kli18n("The Shift key has been locked and is now active for all of the following keypresses.")},
+    Modifier{Qt::Key_Control, kli18n("The Control key has been locked and is now active for all of the following keypresses.")},
+    Modifier{Qt::Key_Alt, kli18n("The Alt key has been locked and is now active for all of the following keypresses.")},
+    Modifier{Qt::Key_Meta, kli18n("The Meta key has been locked and is now active for all of the following keypresses.")},
+    Modifier{Qt::Key_AltGr, kli18n("The AltGr key has been locked and is now active for all of the following keypresses.")},
+};
+
+StickyKeysFilter::StickyKeysFilter()
+    : NWin::InputEventFilter(NWin::InputFilterOrder::StickyKeys)
+    , m_configWatcher(KConfigWatcher::create(KSharedConfig::openConfig("kaccessrc")))
+{
+    const QLatin1StringView groupName("Keyboard");
+    connect(m_configWatcher.get(), &KConfigWatcher::configChanged, this, [this, groupName](const KConfigGroup &group) {
+        if (group.name() == groupName) {
+            loadConfig(group);
+        }
+    });
+    loadConfig(m_configWatcher->config()->group(groupName));
+
+    for (int mod : std::as_const(m_modifiers)) {
+        m_keyStates[mod] = None;
+    }
+}
+
+NWin::Xkb::Modifier keyToModifier(Qt::Key key)
+{
+    if (key == Qt::Key_Shift) {
+        return NWin::Xkb::Shift;
+    } else if (key == Qt::Key_Alt) {
+        return NWin::Xkb::Mod1;
+    } else if (key == Qt::Key_Control) {
+        return NWin::Xkb::Control;
+    } else if (key == Qt::Key_AltGr) {
+        return NWin::Xkb::Mod5;
+    } else if (key == Qt::Key_Meta) {
+        return NWin::Xkb::Mod4;
+    }
+
+    return NWin::Xkb::NoModifier;
+}
+
+void StickyKeysFilter::loadConfig(const KConfigGroup &group)
+{
+    NWin::input()->uninstallInputEventFilter(this);
+
+    m_lockKeys = group.readEntry<bool>("StickyKeysLatch", true);
+    m_showNotificationForLockedKeys = group.readEntry<bool>("kNotifyModifiers", false);
+    m_disableOnTwoKeys = group.readEntry<bool>("StickyKeysAutoOff", false);
+    m_ringBell = group.readEntry<bool>("StickyKeysBeep", false);
+
+    bool changed = false;
+    if (!m_lockKeys) {
+        // locking keys is deactivated, unlock all locked keys
+        for (auto it = m_keyStates.keyValueBegin(); it != m_keyStates.keyValueEnd(); ++it) {
+            if (it->second == KeyState::Locked) {
+                it->second = KeyState::None;
+                NWin::input()->keyboard()->xkb()->setModifierLocked(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+                changed = true;
+            }
+        }
+    }
+
+    if (group.readEntry<bool>("StickyKeys", false)) {
+        NWin::input()->installInputEventFilter(this);
+    } else {
+        // sticky keys are deactivated, unlatch all latched/locked keys
+        for (auto it = m_keyStates.keyValueBegin(); it != m_keyStates.keyValueEnd(); ++it) {
+            if (it->second != KeyState::None) {
+                it->second = KeyState::None;
+                NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+                changed = true;
+            }
+        }
+    }
+    if (changed) {
+        NWin::input()->keyboard()->xkb()->forwardModifiers();
+        Q_EMIT NWin::input()->keyboard()->xkb()->modifierStateChanged();
+    }
+}
+
+bool StickyKeysFilter::keyboardKey(NWin::KeyboardKeyEvent *event)
+{
+    const bool pressed = event->state == NWin::KeyboardKeyState::Repeated || event->state == NWin::KeyboardKeyState::Pressed;
+    bool changed = false;
+
+    if (m_modifiers.contains(event->key)) {
+        if (pressed) {
+            m_pressedModifiers << event->key;
+        } else {
+            m_pressedModifiers.remove(event->key);
+        }
+
+        auto keyState = m_keyStates.find(event->key);
+
+        if (m_ringBell && !pressed) {
+            if (auto effect = NWin::effects->provides(NWin::Effect::SystemBell)) {
+                effect->perform(NWin::Effect::SystemBell, {});
+            }
+        }
+
+        if (keyState != m_keyStates.end()) {
+            if (pressed) {
+                // An unlatched modifier was pressed, latch it
+                if (keyState.value() == None) {
+                    keyState.value() = Latched;
+                    NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(event->key)), true);
+                    changed = true;
+                }
+                // A latched modifier was pressed, lock it
+                else if (keyState.value() == Latched && m_lockKeys) {
+                    keyState.value() = Locked;
+                    NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(event->key)), false);
+                    NWin::input()->keyboard()->xkb()->setModifierLocked(keyToModifier(static_cast<Qt::Key>(event->key)), true);
+                    changed = true;
+
+                    if (m_showNotificationForLockedKeys) {
+#if NWIN_BUILD_NOTIFICATIONS
+                        KNotification *noti = new KNotification("modifierkey-locked");
+                        noti->setComponentName("kaccess");
+
+                        for (const auto mod : modifiers) {
+                            if (mod.key == event->key) {
+                                noti->setText(mod.lockedText.toString());
+                                break;
+                            }
+                        }
+
+                        noti->sendEvent();
+#endif
+                    }
+                }
+                // A locked modifier was pressed, unlock it
+                else if (keyState.value() == Locked && m_lockKeys) {
+                    keyState.value() = None;
+                    NWin::input()->keyboard()->xkb()->setModifierLocked(keyToModifier(static_cast<Qt::Key>(event->key)), false);
+                    changed = true;
+                }
+            }
+        }
+    } else if (pressed) {
+        if (!m_pressedModifiers.isEmpty() && m_disableOnTwoKeys) {
+            disableStickyKeys();
+            changed = true;
+        }
+
+        // a non-modifier key was pressed, unlatch all unlocked modifiers
+        for (auto it = m_keyStates.keyValueBegin(); it != m_keyStates.keyValueEnd(); ++it) {
+            if (it->second == Locked) {
+                continue;
+            }
+
+            it->second = KeyState::None;
+
+            NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+            changed = true;
+        }
+    }
+    if (changed) {
+        Q_EMIT NWin::input()->keyboard()->xkb()->modifierStateChanged();
+    }
+
+    return false;
+}
+
+void StickyKeysFilter::disableStickyKeys()
+{
+    for (auto it = m_keyStates.keyValueBegin(); it != m_keyStates.keyValueEnd(); ++it) {
+        it->second = KeyState::None;
+        NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+        NWin::input()->keyboard()->xkb()->setModifierLocked(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+    }
+
+    NWin::input()->uninstallInputEventFilter(this);
+}
+
+bool StickyKeysFilter::pointerButton(NWin::PointerButtonEvent *event)
+{
+    if (event->state == NWin::PointerButtonState::Released) {
+        // unlatch all unlocked modifiers
+        for (auto it = m_keyStates.keyValueBegin(); it != m_keyStates.keyValueEnd(); ++it) {
+            if (it->second == Locked) {
+                continue;
+            }
+
+            it->second = KeyState::None;
+
+            NWin::input()->keyboard()->xkb()->setModifierLatched(keyToModifier(static_cast<Qt::Key>(it->first)), false);
+
+            // We need to delay the modifier update until the client received the mouse event, otherwise
+            // the updated modifiers arrive before the mouse event and e.g. Ctrl+Click won't work
+            QTimer::singleShot(0, this, [] {
+                NWin::input()->keyboard()->xkb()->forwardModifiers();
+            });
+        }
+    }
+
+    return false;
+}
+
+#include "moc_stickykeys.cpp"

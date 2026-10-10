@@ -1,0 +1,5 @@
+File=trackmouse.kcfg
+ClassName=TrackMouseConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

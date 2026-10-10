@@ -1,0 +1,5 @@
+File=wobblywindows.kcfg
+ClassName=WobblyWindowsConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

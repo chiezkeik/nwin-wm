@@ -1,0 +1,7 @@
+File=nwintouchscreenscriptsettings.kcfg
+NameSpace=NWin
+ClassName=NWinTouchScreenScriptSettings
+IncludeFiles=\"effect/globals.h\"
+Mutators=true
+DefaultValueGetters=true
+ParentInConstructor=true

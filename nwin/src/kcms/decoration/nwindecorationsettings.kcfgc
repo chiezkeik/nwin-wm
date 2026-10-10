@@ -1,0 +1,7 @@
+File=nwindecorationsettings.kcfg
+ClassName=NWinDecorationSettings
+Mutators=true
+DefaultValueGetters=true
+GenerateProperties=true
+ParentInConstructor=true
+Notifiers=buttonsOnLeft,buttonsOnRight,theme

@@ -1,0 +1,5 @@
+File=magnifier.kcfg
+ClassName=MagnifierConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

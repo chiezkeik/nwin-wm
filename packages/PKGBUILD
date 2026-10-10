@@ -1,0 +1,43 @@
+# Native NWin compositor and SDK, based on the compatible Arch KWin release.
+pkgname=nwin
+pkgver=6.7.5
+pkgrel=1
+pkgdesc='NWin: KDE Wayland compositor with atomic swipe gestures'
+arch=(x86_64)
+url='https://kde.org/plasma-desktop/'
+license=(LGPL-2.0-or-later)
+groups=(plasma)
+conflicts=(kwin)
+options=(!debug)
+depends=(aurorae breeze glibc iio-sensor-proxy plasma-activities kauth kcmutils kcolorscheme kconfig kcoreaddons kcrash kdbusaddons kdeclarative kdecoration kglobalaccel kglobalacceld kguiaddons ki18n kidletime kirigami kitemmodels knewstuff knighttime knotifications kpackage kquickcharts kscreenlocker kservice ksvg kwayland kwidgetsaddons kwindowsystem kxmlgui lcms2 libcanberra libdisplay-info libdrm libei libepoxy libevdev libgcc libinput libpipewire libqaccessibilityclient-qt6 libstdc++ libxcb libxcvt libxkbcommon mesa milou pipewire-session-manager libplasma qt6-5compat qt6-base qt6-declarative qt6-svg qt6-tools systemd-libs vulkan-icd-loader wayland xcb-util-keysyms xcb-util-wm)
+makedepends=(cmake ninja git rust extra-cmake-modules kdoctools krunner plasma-wayland-protocols python vulkan-headers wayland-protocols xorg-xwayland)
+optdepends=('plasma-keyboard: virtual keyboard')
+source=("nwin::git+https://github.com/KDE/kwin.git#tag=v$pkgver"
+        nwin.patch)
+sha256sums=('SKIP' 'a52540ae8c24c2a9c7080c5d4456bce92c6521af277064ab5b148aec000f72d2')
+
+prepare() {
+  cd "$srcdir/nwin"
+  git apply "$srcdir/nwin.patch"
+}
+
+build() {
+  cmake -B "$srcdir/build" -S "$srcdir/nwin" -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=ON
+  cmake --build "$srcdir/build"
+}
+
+check() {
+  QT_QPA_PLATFORM=offscreen "$srcdir/build/bin/testGestures"
+  QT_QPA_PLATFORM=offscreen "$srcdir/build/bin/testVirtualDesktops"
+  LIBGL_ALWAYS_SOFTWARE=1 ctest --test-dir "$srcdir/build" \
+    -R '^nwin-test(DiscreteSwipes|TouchInput)$' --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+  setcap CAP_SYS_NICE=+ep "$pkgdir/usr/bin/nwin_wayland"
+}

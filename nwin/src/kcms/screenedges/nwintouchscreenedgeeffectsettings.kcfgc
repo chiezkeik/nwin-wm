@@ -1,0 +1,7 @@
+File=nwintouchscreenedgeeffectsettings.kcfg
+NameSpace=NWin
+ClassName=NWinTouchScreenEdgeEffectSettings
+IncludeFiles=\"effect/globals.h\"
+Mutators=true
+DefaultValueGetters=true
+ParentInConstructor=true

@@ -1,0 +1,3 @@
+add_library(KF6GlobalAccelNWinPlugin OBJECT kglobalaccel_plugin.cpp)
+target_compile_definitions(KF6GlobalAccelNWinPlugin PRIVATE QT_STATICPLUGIN)
+target_link_libraries(KF6GlobalAccelNWinPlugin K::KGlobalAccelD nwin)

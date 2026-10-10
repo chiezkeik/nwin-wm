@@ -1,0 +1,652 @@
+diff --git a/.flatpak-manifest.json b/.flatpak-manifest.json
+index 31eefdd..835d426 100644
+--- a/.flatpak-manifest.json
++++ b/.flatpak-manifest.json
+@@ -9,7 +9,8 @@
+     "desktop-file-name-suffix": " (Nightly)",
+     "finish-args": ["--share=ipc", "--socket=x11", "--socket=wayland",
+         "--talk-name=org.kde.kglobalaccel",
+-        "--talk-name=org.kde.KWin"],
++        "--talk-name=org.kde.NWin",
++        "--talk-name=org.kde.NWin.ScreenShot2"],
+ 
+     "modules": [
+         {
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2c18e00..e9273a4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -91,7 +91,7 @@ find_package(Wayland REQUIRED COMPONENTS Client)
+ find_package(PlasmaWaylandProtocols REQUIRED)
+ find_package(LayerShellQt REQUIRED)
+ find_package(KPipeWire)
+-find_package(OpenCV 4.7 REQUIRED core imgproc)
++find_package(OpenCV 5 REQUIRED core imgproc)
+ find_package(PkgConfig REQUIRED)
+ 
+ set_package_properties(KPipeWire PROPERTIES DESCRIPTION
+diff --git a/README.md b/README.md
+index 1b84d65..95eda6b 100644
+--- a/README.md
++++ b/README.md
+@@ -20,11 +20,10 @@ to contribute patches. Please note that pull requests on GitHub aren't
+ supported. The recommended way of contributing patches is via KDE's
+ instance of GitLab at https://invent.kde.org/plasma/spectacle.
+ 
+-When building Spectacle yourself (including when using kde-builder), you may
+-find that Spectacle is not authorized to take screenshots or recordings with
+-your system's installed KWin. To work around this, you can either also build
+-KWin from source, or use the `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`/\
+-`KWIN_WAYLAND_NO_PERMISSION_CHECKS=1` environment variables in your session.
++This native build captures Wayland windows through `org.kde.NWin.ScreenShot2`.
++Install its desktop entry together with the executable: NWin checks the
++`org.kde.NWin.ScreenShot2` restricted-interface permission declared there.
++The X11 capture backend is unchanged.
+ 
+ ## Release Schedule
+ 
+diff --git a/desktop/org.kde.spectacle.desktop.cmake b/desktop/org.kde.spectacle.desktop.cmake
+index 8ca45b5..ef1b0b6 100644
+--- a/desktop/org.kde.spectacle.desktop.cmake
++++ b/desktop/org.kde.spectacle.desktop.cmake
+@@ -203,7 +203,7 @@ DBusActivatable=true
+ X-DBUS-StartupType=Unique
+ X-DBUS-ServiceName=org.kde.Spectacle
+ X-KDE-Shortcuts=Print,Meta+Shift+S
+-X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
++X-KDE-DBUS-Restricted-Interfaces=org.kde.NWin.ScreenShot2
+ X-KDE-Wayland-Interfaces=org_kde_plasma_window_management,zkde_screencast_unstable_v1
+ 
+ [Desktop Action FullScreenScreenShot]
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 84adc11..ce26f8b 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -50,7 +50,7 @@ target_sources(spectacle PRIVATE
+     Main.cpp
+     PlasmaVersion.cpp
+     Platforms/ImagePlatform.cpp
+-    Platforms/ImagePlatformKWin.cpp
++    Platforms/ImagePlatformNWin.cpp
+     Platforms/PlatformLoader.cpp
+     Platforms/PlatformNull.cpp
+     Platforms/screencasting.cpp
+diff --git a/src/Gui/CaptureOverlay.qml b/src/Gui/CaptureOverlay.qml
+index 23fd11f..a537d4e 100644
+--- a/src/Gui/CaptureOverlay.qml
++++ b/src/Gui/CaptureOverlay.qml
+@@ -37,7 +37,7 @@ MouseArea {
+             } else if (!SpectacleCore.videoMode) {
+                 return SpectacleCore.annotationDocument.imageDpr
+             }
+-            // The scale for KWin's region screencasting raw size is the largest of the overlapped screen scales.
++            // The scale for NWin's region screencasting raw size is the largest of the overlapped screen scales.
+             // If you have 3 screens (125%, 100%, 175% scales) and the region overlaps the 125% and 100% screens,
+             // the recording will use the logical selection size times 1.25 for its raw size.
+             let dpr = 0
+diff --git a/src/Main.cpp b/src/Main.cpp
+index 19f7fc0..1f7f4a8 100644
+--- a/src/Main.cpp
++++ b/src/Main.cpp
+@@ -65,9 +65,9 @@ int main(int argc, char **argv)
+ 
+     // BUG: https://bugs.kde.org/show_bug.cgi?id=451842
+     // We currently don't support desktop environments besides KDE Plasma on Wayland
+-    // because we have to rely on KWin's DBus API.
++    // because we have to rely on NWin's DBus API.
+     if (KWindowSystem::isPlatformWayland() && !ScreenShotEffect::isLoaded()) {
+-        auto message = i18n("On Wayland, Spectacle requires KDE Plasma's KWin compositor, which does not seem to be available. Use Spectacle on KDE Plasma, or use a different screenshot tool.");
++        auto message = i18n("On Wayland, Spectacle requires the NWin compositor, which does not seem to be available. Use Spectacle on NWin, or use a different screenshot tool.");
+         qWarning().noquote() << message;
+         if (commandLineParser.isSet(CommandLineOptions::self()->background)
+             || commandLineParser.isSet(CommandLineOptions::self()->dbus)) {
+diff --git a/src/Platforms/ImagePlatformKWin.cpp b/src/Platforms/ImagePlatformNWin.cpp
+similarity index 88%
+rename from src/Platforms/ImagePlatformKWin.cpp
+rename to src/Platforms/ImagePlatformNWin.cpp
+index 1d93ae3..1da3b7a 100644
+--- a/src/Platforms/ImagePlatformKWin.cpp
++++ b/src/Platforms/ImagePlatformNWin.cpp
+@@ -4,7 +4,7 @@
+     SPDX-License-Identifier: LGPL-2.0-or-later
+ */
+ 
+-#include "ImagePlatformKWin.h"
++#include "ImagePlatformNWin.h"
+ #include "ExportManager.h"
+ #include "Geometry.h"
+ #include "QtCV.h"
+@@ -37,25 +37,25 @@
+ 
+ using namespace Qt::StringLiterals;
+ 
+-static const QString s_screenShotService = u"org.kde.KWin.ScreenShot2"_s;
+-static const QString s_screenShotObjectPath = u"/org/kde/KWin/ScreenShot2"_s;
+-static const QString s_screenShotInterface = u"org.kde.KWin.ScreenShot2"_s;
++static const QString s_screenShotService = u"org.kde.NWin.ScreenShot2"_s;
++static const QString s_screenShotObjectPath = u"/org/kde/NWin/ScreenShot2"_s;
++static const QString s_screenShotInterface = u"org.kde.NWin.ScreenShot2"_s;
+ 
+-static QVariantMap screenShotFlagsToVardict(ImagePlatformKWin::ScreenShotFlags flags)
++static QVariantMap screenShotFlagsToVardict(ImagePlatformNWin::ScreenShotFlags flags)
+ {
+     QVariantMap options;
+ 
+-    if (flags & ImagePlatformKWin::ScreenShotFlag::IncludeCursor) {
++    if (flags & ImagePlatformNWin::ScreenShotFlag::IncludeCursor) {
+         options.insert(u"include-cursor"_s, true);
+     }
+-    if (flags & ImagePlatformKWin::ScreenShotFlag::IncludeDecoration) {
++    if (flags & ImagePlatformNWin::ScreenShotFlag::IncludeDecoration) {
+         options.insert(u"include-decoration"_s, true);
+     }
+ 
+-    bool includeShadow = flags & ImagePlatformKWin::ScreenShotFlag::IncludeShadow;
++    bool includeShadow = flags & ImagePlatformNWin::ScreenShotFlag::IncludeShadow;
+     options.insert(u"include-shadow"_s, includeShadow);
+ 
+-    if (flags & ImagePlatformKWin::ScreenShotFlag::NativeSize) {
++    if (flags & ImagePlatformNWin::ScreenShotFlag::NativeSize) {
+         options.insert(u"native-resolution"_s, true);
+     }
+ 
+@@ -140,12 +140,12 @@ static ResultVariant allocateImage(const QVariantMap &metadata)
+     // We use int because QImage takes ints for its size
+     const int width = metadata.value(u"width"_s).toInt(&ok);
+     if (!ok || width <= 0) {
+-        errors = i18nc("@info, %1 is the width", "Bad width for KWin screenshot: %1", QDebug::toString(metadata.value(u"width"_s)));
++        errors = i18nc("@info, %1 is the width", "Bad width for NWin screenshot: %1", QDebug::toString(metadata.value(u"width"_s)));
+     }
+ 
+     const int height = metadata.value(u"height"_s).toInt(&ok);
+     if (!ok || height <= 0) {
+-        const auto string = i18nc("@info, %1 is the height", "Bad height for KWin screenshot: %1", QDebug::toString(metadata.value(u"height"_s)));
++        const auto string = i18nc("@info, %1 is the height", "Bad height for NWin screenshot: %1", QDebug::toString(metadata.value(u"height"_s)));
+         if (!errors.isEmpty()) {
+             errors = errors % u"\n"_s % string;
+         } else {
+@@ -156,7 +156,7 @@ static ResultVariant allocateImage(const QVariantMap &metadata)
+     // We use uint because QImage::Format values are all above 0.
+     const uint format = metadata.value(u"format"_s).toUInt(&ok);
+     if (!ok || format <= QImage::Format_Invalid || format >= QImage::NImageFormats) {
+-        const auto string = i18nc("@info, %1 is a file format like 'png', 'jpg'", "Bad format for KWin screenshot: %1", QDebug::toString(metadata.value(u"format"_s)));
++        const auto string = i18nc("@info, %1 is a file format like 'png', 'jpg'", "Bad format for NWin screenshot: %1", QDebug::toString(metadata.value(u"format"_s)));
+         if (!errors.isEmpty()) {
+             errors = errors % u"\n"_s % string;
+         } else {
+@@ -174,7 +174,7 @@ static ResultVariant readImage(int fileDescriptor, const QVariantMap &metadata)
+     QFile file;
+     if (!file.open(fileDescriptor, QFileDevice::ReadOnly, QFileDevice::AutoCloseHandle)) {
+         close(fileDescriptor);
+-        return {i18nc("@info", "Could not open file descriptor for reading KWin screenshot.")};
++        return {i18nc("@info", "Could not open file descriptor for reading NWin screenshot.")};
+     }
+ 
+     ResultVariant result = allocateImage(metadata);
+@@ -186,7 +186,7 @@ static ResultVariant readImage(int fileDescriptor, const QVariantMap &metadata)
+     bool ok = false;
+     qreal scale = metadata.value(u"scale"_s).toReal(&ok);
+     if (ok) {
+-        // NOTE: KWin X11Output DPR is always 1. This is intentional.
++        // NOTE: NWin X11Output DPR is always 1. This is intentional.
+         // https://bugs.kde.org/show_bug.cgi?id=474778
+         if (KWindowSystem::isPlatformX11() && scale == 1) {
+             scale = qGuiApp->devicePixelRatio();
+@@ -198,9 +198,9 @@ static ResultVariant readImage(int fileDescriptor, const QVariantMap &metadata)
+     // No point in storing the windowId in the image since it means nothing to users
+     // and can't be used if the window is closed.
+     if (!windowId.isEmpty()) {
+-        QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s,
+-                                                              u"/KWin"_s,
+-                                                              u"org.kde.KWin"_s,
++        QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.NWin"_s,
++                                                              u"/NWin"_s,
++                                                              u"org.kde.NWin"_s,
+                                                               u"getWindowInfo"_s);
+         message.setArguments({windowId});
+         const QDBusReply<QVariantMap> reply = QDBusConnection::sessionBus().call(message);
+@@ -242,7 +242,7 @@ ScreenShotSource2::ScreenShotSource2(const QString &methodName, ArgType... argum
+     if (pipe2(pipeFds, O_CLOEXEC) == -1) {
+         const auto errnum = errno;
+         QTimer::singleShot(0, this, [this, errnum]{
+-            Q_EMIT finished({i18nc("@info, %1 is an error code", "pipe2() failed for KWin screenshot: %1", QString::fromLocal8Bit(strerror(errnum)))});
++            Q_EMIT finished({i18nc("@info, %1 is an error code", "pipe2() failed for NWin screenshot: %1", QString::fromLocal8Bit(strerror(errnum)))});
+         });
+         return;
+     }
+@@ -294,11 +294,11 @@ ScreenShotSource2::ScreenShotSource2(const QString &methodName, ArgType... argum
+         }
+ 
+         if (reply.isError()) {
+-            if (reply.error().name() == u"org.kde.KWin.ScreenShot2.Error.Cancelled"_s) {
++            if (reply.error().name() == u"org.kde.NWin.ScreenShot2.Error.Cancelled"_s) {
+                 // don't show error on user cancellation
+                 Q_EMIT finished(ResultVariant::canceled());
+             } else {
+-                auto error = i18nc("@info, %1 is an error message", "KWin screenshot request failed:\n%1", reply.error().message());
++                auto error = i18nc("@info, %1 is an error message", "NWin screenshot request failed:\n%1", reply.error().message());
+                 if (!relevantInfo.isEmpty()) {
+                     error = error % u"\n"_s % i18nc("@info", "Potentially relevant information:\n%1", relevantInfo);
+                 }
+@@ -308,7 +308,7 @@ ScreenShotSource2::ScreenShotSource2(const QString &methodName, ArgType... argum
+             const QVariantMap &metadata = reply;
+             const QString type = metadata.value(u"type"_s).toString();
+             if (type != "raw"_L1) {
+-                const QString errorString = i18nc("@info", "Unsupported KWin screenshot type metadata: %1", type);
++                const QString errorString = i18nc("@info", "Unsupported NWin screenshot type metadata: %1", type);
+                 Q_EMIT finished({errorString});
+                 return;
+             }
+@@ -321,7 +321,7 @@ ScreenShotSource2::ScreenShotSource2(const QString &methodName, ArgType... argum
+     });
+ }
+ 
+-ScreenShotSourceArea2::ScreenShotSourceArea2(const QRect &area, ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceArea2::ScreenShotSourceArea2(const QRect &area, ImagePlatformNWin::ScreenShotFlags flags)
+     : ScreenShotSource2(u"CaptureArea"_s,
+                         qint32(area.x()),
+                         qint32(area.y()),
+@@ -331,30 +331,30 @@ ScreenShotSourceArea2::ScreenShotSourceArea2(const QRect &area, ImagePlatformKWi
+ {
+ }
+ 
+-ScreenShotSourceInteractive2::ScreenShotSourceInteractive2(ImagePlatformKWin::InteractiveKind kind, ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceInteractive2::ScreenShotSourceInteractive2(ImagePlatformNWin::InteractiveKind kind, ImagePlatformNWin::ScreenShotFlags flags)
+     : ScreenShotSource2(u"CaptureInteractive"_s, quint32(kind), screenShotFlagsToVardict(flags))
+ {
+ }
+ 
+-ScreenShotSourceScreen2::ScreenShotSourceScreen2(const QScreen *screen, ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceScreen2::ScreenShotSourceScreen2(const QScreen *screen, ImagePlatformNWin::ScreenShotFlags flags)
+ // NOTE: As of Qt 6.4, QScreen::name() is not guaranteed to match the result of any native APIs.
+ // It should not be used to uniquely identify a screen, but it happens to work on X11 and Wayland.
+-// KWin's ScreenShot2 DBus API uses QScreen::name() as identifiers for screens.
++// NWin's ScreenShot2 DBus API uses QScreen::name() as identifiers for screens.
+     : ScreenShotSource2(u"CaptureScreen"_s, screen->name(), screenShotFlagsToVardict(flags))
+ {
+ }
+ 
+-ScreenShotSourceActiveWindow2::ScreenShotSourceActiveWindow2(ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceActiveWindow2::ScreenShotSourceActiveWindow2(ImagePlatformNWin::ScreenShotFlags flags)
+     : ScreenShotSource2(u"CaptureActiveWindow"_s, screenShotFlagsToVardict(flags))
+ {
+ }
+ 
+-ScreenShotSourceActiveScreen2::ScreenShotSourceActiveScreen2(ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceActiveScreen2::ScreenShotSourceActiveScreen2(ImagePlatformNWin::ScreenShotFlags flags)
+     : ScreenShotSource2(u"CaptureActiveScreen"_s, screenShotFlagsToVardict(flags))
+ {
+ }
+ 
+-ScreenShotSourceWorkspace2::ScreenShotSourceWorkspace2(ImagePlatformKWin::ScreenShotFlags flags)
++ScreenShotSourceWorkspace2::ScreenShotSourceWorkspace2(ImagePlatformNWin::ScreenShotFlags flags)
+     : ScreenShotSource2(u"CaptureWorkspace"_s, screenShotFlagsToVardict(flags))
+ {
+ }
+@@ -374,14 +374,14 @@ ScreenShotSourceMeta2::ScreenShotSourceMeta2(const QVector<ScreenShotSource2 *>
+     }
+ }
+ 
+-ImagePlatformKWin::ImagePlatformKWin(QObject *parent)
++ImagePlatformNWin::ImagePlatformNWin(QObject *parent)
+     : ImagePlatform(parent)
+ {
+-    auto message = QDBusMessage::createMethodCall(u"org.kde.KWin.ScreenShot2"_s,
+-                                                  u"/org/kde/KWin/ScreenShot2"_s,
++    auto message = QDBusMessage::createMethodCall(u"org.kde.NWin.ScreenShot2"_s,
++                                                  u"/org/kde/NWin/ScreenShot2"_s,
+                                                   u"org.freedesktop.DBus.Properties"_s,
+                                                   u"Get"_s);
+-    message.setArguments({u"org.kde.KWin.ScreenShot2"_s, u"Version"_s});
++    message.setArguments({u"org.kde.NWin.ScreenShot2"_s, u"Version"_s});
+ 
+     const QDBusMessage reply = QDBusConnection::sessionBus().call(message);
+     if (reply.type() == QDBusMessage::ReplyMessage) {
+@@ -389,16 +389,16 @@ ImagePlatformKWin::ImagePlatformKWin(QObject *parent)
+     }
+ 
+     updateSupportedGrabModes();
+-    connect(qGuiApp, &QGuiApplication::screenAdded, this, &ImagePlatformKWin::updateSupportedGrabModes);
+-    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &ImagePlatformKWin::updateSupportedGrabModes);
++    connect(qGuiApp, &QGuiApplication::screenAdded, this, &ImagePlatformNWin::updateSupportedGrabModes);
++    connect(qGuiApp, &QGuiApplication::screenRemoved, this, &ImagePlatformNWin::updateSupportedGrabModes);
+ }
+ 
+-ImagePlatform::GrabModes ImagePlatformKWin::supportedGrabModes() const
++ImagePlatform::GrabModes ImagePlatformNWin::supportedGrabModes() const
+ {
+     return m_grabModes;
+ }
+ 
+-void ImagePlatformKWin::updateSupportedGrabModes()
++void ImagePlatformNWin::updateSupportedGrabModes()
+ {
+     ImagePlatform::GrabModes grabModes = GrabMode::AllScreens | GrabMode::WindowUnderCursor | GrabMode::PerScreenImageNative;
+ 
+@@ -416,12 +416,12 @@ void ImagePlatformKWin::updateSupportedGrabModes()
+     }
+ }
+ 
+-ImagePlatform::ShutterModes ImagePlatformKWin::supportedShutterModes() const
++ImagePlatform::ShutterModes ImagePlatformNWin::supportedShutterModes() const
+ {
+     return ShutterMode::Immediate;
+ }
+ 
+-void ImagePlatformKWin::doGrab(ShutterMode, GrabMode grabMode, bool includePointer, bool includeDecorations, bool includeShadow)
++void ImagePlatformNWin::doGrab(ShutterMode, GrabMode grabMode, bool includePointer, bool includeDecorations, bool includeShadow)
+ {
+     ScreenShotFlags flags = ScreenShotFlag::NativeSize;
+ 
+@@ -464,7 +464,7 @@ void ImagePlatformKWin::doGrab(ShutterMode, GrabMode grabMode, bool includePoint
+     }
+ }
+ 
+-void ImagePlatformKWin::trackSource(ScreenShotSource2 *source)
++void ImagePlatformNWin::trackSource(ScreenShotSource2 *source)
+ {
+     connect(source, &ScreenShotSource2::finished, this, [this, source](const ResultVariant &result) {
+         source->deleteLater();
+@@ -480,7 +480,7 @@ void ImagePlatformKWin::trackSource(ScreenShotSource2 *source)
+ }
+ 
+ template<typename OutputSignal>
+-void ImagePlatformKWin::trackSource(ScreenShotSourceMeta2 *source, OutputSignal outputSignal)
++void ImagePlatformNWin::trackSource(ScreenShotSourceMeta2 *source, OutputSignal outputSignal)
+ {
+     connect(source, &ScreenShotSourceMeta2::finished, this, [this, source, outputSignal](const QList<ResultVariant> &results) {
+         source->deleteLater();
+@@ -504,27 +504,27 @@ void ImagePlatformKWin::trackSource(ScreenShotSourceMeta2 *source, OutputSignal
+     });
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotArea(const QRect &area, ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotArea(const QRect &area, ScreenShotFlags flags)
+ {
+     trackSource(new ScreenShotSourceArea2(area, flags));
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotInteractive(InteractiveKind kind, ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotInteractive(InteractiveKind kind, ScreenShotFlags flags)
+ {
+     trackSource(new ScreenShotSourceInteractive2(kind, flags));
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotActiveWindow(ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotActiveWindow(ScreenShotFlags flags)
+ {
+     trackSource(new ScreenShotSourceActiveWindow2(flags));
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotActiveScreen(ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotActiveScreen(ScreenShotFlags flags)
+ {
+     trackSource(new ScreenShotSourceActiveScreen2(flags));
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotWorkspace(ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotWorkspace(ScreenShotFlags flags)
+ {
+     const auto &screens = qGuiApp->screens();
+     QList<ScreenShotSource2 *> sources;
+@@ -535,7 +535,7 @@ void ImagePlatformKWin::takeScreenShotWorkspace(ScreenShotFlags flags)
+     trackSource(new ScreenShotSourceMeta2(sources), &ImagePlatform::newScreenshotTaken);
+ }
+ 
+-void ImagePlatformKWin::takeScreenShotCroppable(ScreenShotFlags flags)
++void ImagePlatformNWin::takeScreenShotCroppable(ScreenShotFlags flags)
+ {
+     const auto &screens = qGuiApp->screens();
+     QList<ScreenShotSource2 *> sources;
+@@ -546,4 +546,4 @@ void ImagePlatformKWin::takeScreenShotCroppable(ScreenShotFlags flags)
+     trackSource(new ScreenShotSourceMeta2(sources), &ImagePlatform::newCroppableScreenshotTaken);
+ }
+ 
+-#include "moc_ImagePlatformKWin.cpp"
++#include "moc_ImagePlatformNWin.cpp"
+diff --git a/src/Platforms/ImagePlatformKWin.h b/src/Platforms/ImagePlatformNWin.h
+similarity index 80%
+rename from src/Platforms/ImagePlatformKWin.h
+rename to src/Platforms/ImagePlatformNWin.h
+index 2b4c8a3..9c1f9de 100644
+--- a/src/Platforms/ImagePlatformKWin.h
++++ b/src/Platforms/ImagePlatformNWin.h
+@@ -37,16 +37,16 @@ struct ResultVariant : public std::variant<std::monostate, QImage, QString> {
+ };
+ 
+ /**
+- * The PlatformKWin class uses the org.kde.KWin.ScreenShot2 dbus interface
++ * The ImagePlatformNWin class uses the org.kde.NWin.ScreenShot2 dbus interface
+  * for taking screenshots of screens and windows.
+  */
+-class ImagePlatformKWin final : public ImagePlatform
++class ImagePlatformNWin final : public ImagePlatform
+ {
+     Q_OBJECT
+ 
+ public:
+-    explicit ImagePlatformKWin(QObject *parent = nullptr);
+-    ~ImagePlatformKWin() override = default;
++    explicit ImagePlatformNWin(QObject *parent = nullptr);
++    ~ImagePlatformNWin() override = default;
+ 
+     enum class ScreenShotFlag : uint {
+         IncludeCursor = 0x1,
+@@ -90,7 +90,7 @@ private:
+ 
+ /**
+  * The ScreenShotSource2 class is the base class for screenshot sources that use the
+- * org.kde.KWin.ScreenShot2 dbus interface.
++ * org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSource2 : public QObject
+ {
+@@ -109,19 +109,19 @@ private:
+ 
+ /**
+  * The ScreenShotSourceArea2 class provides a convenient way to take a screenshot of the
+- * specified area using the org.kde.KWin.ScreenShot2 dbus interface.
++ * specified area using the org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSourceArea2 final : public ScreenShotSource2
+ {
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceArea2(const QRect &area, ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceArea2(const QRect &area, ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+ /**
+  * The ScreenShotSourceInteractive2 class provides a convenient way to take a screenshot
+- * of a screen or a window as selected by the user. This uses the org.kde.KWin.ScreenShot2
++ * of a screen or a window as selected by the user. This uses the org.kde.NWin.ScreenShot2
+  * dbus interface.
+  */
+ class ScreenShotSourceInteractive2 final : public ScreenShotSource2
+@@ -129,43 +129,43 @@ class ScreenShotSourceInteractive2 final : public ScreenShotSource2
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceInteractive2(ImagePlatformKWin::InteractiveKind kind, ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceInteractive2(ImagePlatformNWin::InteractiveKind kind, ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+ /**
+  * The ScreenShotSourceScreen2 class provides a convenient way to take a screenshot of
+- * the specified screen using the org.kde.KWin.ScreenShot2 dbus interface.
++ * the specified screen using the org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSourceScreen2 final : public ScreenShotSource2
+ {
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceScreen2(const QScreen *screen, ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceScreen2(const QScreen *screen, ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+ /**
+  * The ScreenShotSourceActiveWindow2 class provides a convenient way to take a screenshot
+- * of the active window. This uses the org.kde.KWin.ScreenShot2 dbus interface.
++ * of the active window. This uses the org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSourceActiveWindow2 final : public ScreenShotSource2
+ {
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceActiveWindow2(ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceActiveWindow2(ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+ /**
+  * The ScreenShotSourceActiveScreen2 class provides a convenient way to take a screenshot
+- * of the active screen. This uses the org.kde.KWin.ScreenShot2 dbus interface.
++ * of the active screen. This uses the org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSourceActiveScreen2 final : public ScreenShotSource2
+ {
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceActiveScreen2(ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceActiveScreen2(ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+ /**
+@@ -188,14 +188,14 @@ private:
+ 
+ /**
+  * The ScreenShotSourceWorkspace2 class provides a convenient way to take a screenshot
+- * of the whole workspace. This uses the org.kde.KWin.ScreenShot2 dbus interface.
++ * of the whole workspace. This uses the org.kde.NWin.ScreenShot2 dbus interface.
+  */
+ class ScreenShotSourceWorkspace2 final : public ScreenShotSource2
+ {
+     Q_OBJECT
+ 
+ public:
+-    ScreenShotSourceWorkspace2(ImagePlatformKWin::ScreenShotFlags flags);
++    ScreenShotSourceWorkspace2(ImagePlatformNWin::ScreenShotFlags flags);
+ };
+ 
+-Q_DECLARE_OPERATORS_FOR_FLAGS(ImagePlatformKWin::ScreenShotFlags)
++Q_DECLARE_OPERATORS_FOR_FLAGS(ImagePlatformNWin::ScreenShotFlags)
+diff --git a/src/Platforms/PlatformLoader.cpp b/src/Platforms/PlatformLoader.cpp
+index b865841..c985a7c 100644
+--- a/src/Platforms/PlatformLoader.cpp
++++ b/src/Platforms/PlatformLoader.cpp
+@@ -9,7 +9,7 @@
+ #include "PlasmaVersion.h"
+ #include "ScreenShotEffect.h"
+ 
+-#include "ImagePlatformKWin.h"
++#include "ImagePlatformNWin.h"
+ #include "PlatformNull.h"
+ #include "VideoPlatformWayland.h"
+ 
+@@ -30,8 +30,8 @@ ImagePlatformPtr getForcedImagePlatform()
+         return nullptr;
+     }
+ 
+-    if (platformName == ImagePlatformKWin::staticMetaObject.className()) {
+-        return std::make_unique<ImagePlatformKWin>();
++    if (platformName == ImagePlatformNWin::staticMetaObject.className()) {
++        return std::make_unique<ImagePlatformNWin>();
+     } else if (platformName == ImagePlatformXcb::staticMetaObject.className()) {
+         return std::make_unique<ImagePlatformXcb>();
+     } else if (platformName == ImagePlatformNull::staticMetaObject.className()) {
+@@ -52,10 +52,10 @@ ImagePlatformPtr loadImagePlatform()
+     // Check XDG_SESSION_TYPE because Spectacle might be using the XCB platform via XWayland
+     const bool isReallyX11 = KWindowSystem::isPlatformX11() && qstrcmp(qgetenv("XDG_SESSION_TYPE").constData(), "wayland") != 0;
+     // Before KWin 5.27.8, there was an infinite loop in KWin on X11 when doing rectangle captures.
+-    // Spectacle uses CaptureScreen DBus calls to KWin for rectangle captures.
++    // Spectacle uses CaptureScreen DBus calls to NWin for rectangle captures.
+     if (ScreenShotEffect::isLoaded() && ScreenShotEffect::version() != ScreenShotEffect::NullVersion
+         && (!isReallyX11 || PlasmaVersion::get() >= PlasmaVersion::check(5, 27, 8))) {
+-        return std::make_unique<ImagePlatformKWin>();
++        return std::make_unique<ImagePlatformNWin>();
+     }
+ #ifdef XCB_FOUND
+     else if (isReallyX11) {
+diff --git a/src/Platforms/VideoPlatformWayland.cpp b/src/Platforms/VideoPlatformWayland.cpp
+index 03c6846..47721b4 100644
+--- a/src/Platforms/VideoPlatformWayland.cpp
++++ b/src/Platforms/VideoPlatformWayland.cpp
+@@ -157,7 +157,7 @@ void VideoPlatformWayland::startRecording(const QUrl &fileUrl, RecordingMode rec
+         return;
+     }
+     if (!m_screencasting->isAvailable()) {
+-        Q_EMIT recordingFailed(i18nc("@info", "KWin Screencasting is not available."));
++        Q_EMIT recordingFailed(i18nc("@info", "NWin Screencasting is not available."));
+         return;
+     }
+ 
+@@ -198,7 +198,7 @@ void VideoPlatformWayland::startRecording(const QUrl &fileUrl, RecordingMode rec
+                 return;
+             }
+             Q_ASSERT(!windowId.isEmpty());
+-            // HACK: Window geometry from queryWindowInfo is from KWin's
++            // HACK: Window geometry from queryWindowInfo is from NWin's
+             // Window::frameGeometry(), which may not be the same as
+             // QWindow::frameGeometry() on Wayland. Hopefully this is good enough most
+             // of the time.
+@@ -380,9 +380,9 @@ void VideoPlatformWayland::selectAndRecord(const QUrl &fileUrl, RecordingMode re
+     }
+ 
+     // We should probably come up with a better way of choosing outputs. This should be okay for now. #FLW
+-    QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s,
+-                                                          u"/KWin"_s,
+-                                                          u"org.kde.KWin"_s,
++    QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.NWin"_s,
++                                                          u"/NWin"_s,
++                                                          u"org.kde.NWin"_s,
+                                                           u"queryWindowInfo"_s);
+ 
+     QDBusPendingReply<QVariantMap> asyncReply = QDBusConnection::sessionBus().asyncCall(message);
+@@ -392,7 +392,7 @@ void VideoPlatformWayland::selectAndRecord(const QUrl &fileUrl, RecordingMode re
+         self->deleteLater();
+         if (!reply.isValid()) {
+             const auto &error = self->error();
+-            if (error.name() == u"org.kde.KWin.Error.UserCancel"_s) {
++            if (error.name() == u"org.kde.NWin.Error.UserCancel"_s) {
+                 QString message;
+                 if (recordingMode == Screen) {
+                     message = i18nc("@info:shell", "Screen recording canceled");
+diff --git a/src/Platforms/VideoPlatformWayland.h b/src/Platforms/VideoPlatformWayland.h
+index e12f1f5..f0c78ee 100644
+--- a/src/Platforms/VideoPlatformWayland.h
++++ b/src/Platforms/VideoPlatformWayland.h
+@@ -14,8 +14,8 @@
+ class Screencasting;
+ 
+ /**
+- * The VideoPlatformWayland class uses the org.kde.KWin.ScreenShot2 dbus interface
+- * for taking screenshots of screens and windows.
++ * The VideoPlatformWayland class uses NWin's screencasting Wayland protocol
++ * and org.kde.NWin dbus interface for recording screens and windows.
+  */
+ class VideoPlatformWayland final : public VideoPlatform
+ {
+diff --git a/src/ScreenShotEffect.cpp b/src/ScreenShotEffect.cpp
+index b7f6b69..09a0def 100644
+--- a/src/ScreenShotEffect.cpp
++++ b/src/ScreenShotEffect.cpp
+@@ -14,13 +14,9 @@
+ 
+ using namespace Qt::StringLiterals;
+ 
+-static const auto s_kwinService = u"org.kde.KWin"_s;
+-static const auto s_effectsObjectPath = u"/Effects"_s;
+-static const auto s_effectsInterface = u"org.kde.kwin.Effects"_s;
+-
+-static const auto s_screenShot2Service = u"org.kde.KWin.ScreenShot2"_s;
+-static const auto s_screenShot2ObjectPath = u"/org/kde/KWin/ScreenShot2"_s;
+-static const auto s_screenShot2Interface = u"org.kde.KWin.ScreenShot2"_s;
++static const auto s_screenShot2Service = u"org.kde.NWin.ScreenShot2"_s;
++static const auto s_screenShot2ObjectPath = u"/org/kde/NWin/ScreenShot2"_s;
++static const auto s_screenShot2Interface = u"org.kde.NWin.ScreenShot2"_s;
+ 
+ static quint32 s_version = ScreenShotEffect::NullVersion;
+ 

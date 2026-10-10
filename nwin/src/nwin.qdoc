@@ -1,0 +1,11 @@
+/*!
+ *  \module NWin
+ *  \title NWin C++ Classes
+ *  \cmakepackage NWin
+ *  \cmaketargetitem NWin::nwin
+ */
+
+/*!
+    \qmlmodule org.kde.nwin
+    \title NWin Scripting QML Types
+*/

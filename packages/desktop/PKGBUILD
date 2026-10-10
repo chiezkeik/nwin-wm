@@ -1,0 +1,123 @@
+# Native desktop integration; dependency lists follow installed Arch Plasma 6.7.5.
+# https://gitlab.archlinux.org/archlinux/packaging/packages/plasma-desktop/-/raw/main/PKGBUILD
+pkgname=nwin-plasma-desktop
+pkgver=6.7.5
+pkgrel=1
+pkgdesc='KDE Plasma Desktop with native NWin integration'
+arch=(x86_64)
+url='https://kde.org/plasma-desktop/'
+license=(LGPL-2.0-or-later)
+provides=("plasma-desktop=$pkgver")
+conflicts=(plasma-desktop)
+depends=(attica
+         baloo
+         emoji-font
+         glibc
+         kbookmarks
+         kcmutils
+         kcodecs
+         kcompletion
+         kconfig
+         kconfigwidgets
+         kcoreaddons
+         kcrash
+         kdbusaddons
+         kdeclarative
+         kglobalaccel
+         kguiaddons
+         ki18n
+         kiconthemes
+         kio
+         kirigami
+         kirigami-addons
+         kitemmodels
+         kitemviews
+         kjobwidgets
+         kmenuedit
+         knewstuff
+         knotifications
+         knotifyconfig
+         kpackage
+         kpipewire
+         krunner
+         kservice
+         ksvg
+         kwidgetsaddons
+         kwindowsystem
+         kxmlgui
+         libcanberra
+         libksysguard
+         libstdc++
+         libwacom
+         libx11
+         libxcb
+         libxcursor
+         libxi
+         libxkbcommon
+         libxkbfile
+         libplasma
+         plasma-activities
+         plasma-activities-stats
+         nwin-plasma-workspace
+         nwin
+         plasma5support
+         polkit-kde-agent
+         powerdevil
+         qt6-5compat
+         qt6-base
+         qt6-declarative
+         sdl2
+         solid
+         sonnet
+         systemd-libs
+         systemsettings
+         wayland
+         xcb-util-keysyms
+         xdg-user-dirs)
+optdepends=('bluedevil: Bluetooth applet'
+            'glib2: kimpanel IBUS support'
+            'ibus: kimpanel IBUS support'
+            'kaccounts-integration: OpenDesktop integration plugin'
+            'kscreen: screen management'
+            'libaccounts-qt: OpenDesktop integration plugin'
+            'packagekit-qt6: to install new krunner plugins'
+            'plasma-nm: Network manager applet'
+            'plasma-pa: Audio volume applet'
+            'scim: kimpanel SCIM support')
+makedepends=(extra-cmake-modules
+             git
+             intltool
+             kaccounts-integration
+             kdoctools
+             libibus
+             packagekit-qt6
+             scim
+             wayland-protocols
+             xf86-input-libinput
+             xorg-server-devel)
+groups=(plasma)
+options=(!debug)
+source=("plasma-desktop::git+https://github.com/KDE/plasma-desktop.git#tag=v$pkgver"
+        nwin-desktop.patch)
+sha256sums=('SKIP'
+            '152cefb294bed05ee9e22082ac1392e3cc2c615fe8571f4cae0491a9f70ebf9e')
+
+prepare() {
+  cd plasma-desktop
+  git apply "$srcdir/nwin-desktop.patch"
+}
+
+build() {
+  # Normal CMAKE_PREFIX_PATH discovery supports a staged NWin DBus SDK.
+  cmake -B build -S plasma-desktop \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DKDE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

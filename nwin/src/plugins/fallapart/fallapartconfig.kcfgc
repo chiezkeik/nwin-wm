@@ -1,0 +1,5 @@
+File=fallapart.kcfg
+ClassName=FallApartConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

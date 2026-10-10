@@ -1,0 +1,757 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d996d47..7e13cd7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -131,7 +131,7 @@ add_subdirectory(runners)
+ 
+ add_subdirectory(wallpapers)
+ 
+-add_subdirectory(kwin)
++add_subdirectory(nwin)
+ 
+ add_subdirectory(plasmacalendarplugins)
+ 
+diff --git a/README.md b/README.md
+index 124af49..d7282ba 100644
+--- a/README.md
++++ b/README.md
+@@ -26,7 +26,7 @@ All kind of add-ons to improve your Plasma experience.
+ - Weather Report
+ - Web browser
+ 
+-## Kwin Effects
++## NWin Effects
+ - Cube
+ 
+ ## Window Switchers
+diff --git a/applets/colorpicker/grabwidget.cpp b/applets/colorpicker/grabwidget.cpp
+index 25093fb..565b180 100644
+--- a/applets/colorpicker/grabwidget.cpp
++++ b/applets/colorpicker/grabwidget.cpp
+@@ -62,9 +62,11 @@ void GrabWidget::setCurrentColor(const QColor &color)
+ 
+ void GrabWidget::pick()
+ {
+-    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++    // The standalone kwin-x11 session is independent of native NWin on Wayland.
++    const bool isX11 = QApplication::platformName() == QLatin1String("xcb");
++    QDBusMessage msg = QDBusMessage::createMethodCall(isX11 ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin"),
+                                                       QStringLiteral("/ColorPicker"),
+-                                                      QStringLiteral("org.kde.kwin.ColorPicker"),
++                                                      isX11 ? QStringLiteral("org.kde.kwin.ColorPicker") : QStringLiteral("org.kde.NWin.ColorPicker"),
+                                                       QStringLiteral("pick"));
+     auto call = QDBusConnection::sessionBus().asyncCall(msg, std::numeric_limits<int>::max());
+     QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(call, this);
+diff --git a/kwin/CMakeLists.txt b/nwin/CMakeLists.txt
+similarity index 100%
+rename from kwin/CMakeLists.txt
+rename to nwin/CMakeLists.txt
+diff --git a/kwin/effects/CMakeLists.txt b/nwin/effects/CMakeLists.txt
+similarity index 100%
+rename from kwin/effects/CMakeLists.txt
+rename to nwin/effects/CMakeLists.txt
+diff --git a/kwin/effects/cube/CMakeLists.txt b/nwin/effects/cube/CMakeLists.txt
+similarity index 72%
+rename from kwin/effects/cube/CMakeLists.txt
+rename to nwin/effects/cube/CMakeLists.txt
+index b1e5ba3..9cbb2c2 100644
+--- a/kwin/effects/cube/CMakeLists.txt
++++ b/nwin/effects/cube/CMakeLists.txt
+@@ -3,4 +3,4 @@
+ # SPDX-License-Identifier: BSD-3-Clause
+ 
+ add_subdirectory(kcm)
+-kpackage_install_package(package cube effects kwin)
++kpackage_install_package(package cube effects nwin)
+diff --git a/kwin/effects/cube/Messages.sh b/nwin/effects/cube/Messages.sh
+similarity index 100%
+rename from kwin/effects/cube/Messages.sh
+rename to nwin/effects/cube/Messages.sh
+diff --git a/kwin/effects/cube/kcm/CMakeLists.txt b/nwin/effects/cube/kcm/CMakeLists.txt
+similarity index 65%
+rename from kwin/effects/cube/kcm/CMakeLists.txt
+rename to nwin/effects/cube/kcm/CMakeLists.txt
+index e4057c9..b808d6f 100644
+--- a/kwin/effects/cube/kcm/CMakeLists.txt
++++ b/nwin/effects/cube/kcm/CMakeLists.txt
+@@ -2,14 +2,14 @@
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ 
+-set(kwin_cube_config_SOURCES cubeeffectkcm.cpp)
+-ki18n_wrap_ui(kwin_cube_config_SOURCES cubeeffectkcm.ui)
++set(nwin_cube_config_SOURCES cubeeffectkcm.cpp)
++ki18n_wrap_ui(nwin_cube_config_SOURCES cubeeffectkcm.ui)
+ 
+-kcoreaddons_add_plugin(kwin_cube_config INSTALL_NAMESPACE "kwin/effects/configs" SOURCES ${kwin_cube_config_SOURCES})
+-target_sources(kwin_cube_config PRIVATE
++kcoreaddons_add_plugin(nwin_cube_config INSTALL_NAMESPACE "nwin/effects/configs" SOURCES ${nwin_cube_config_SOURCES})
++target_sources(nwin_cube_config PRIVATE
+     resources.qrc
+ )
+-target_link_libraries(kwin_cube_config
++target_link_libraries(nwin_cube_config
+     KF6::ConfigCore
+     KF6::ConfigGui
+     KF6::ConfigWidgets
+@@ -20,7 +20,7 @@ target_link_libraries(kwin_cube_config
+     KF6::XmlGui
+ )
+ 
+-target_compile_definitions(kwin_cube_config PRIVATE
++target_compile_definitions(nwin_cube_config PRIVATE
+     -DTRANSLATION_DOMAIN=\"kwin_effect_cube\"
+ )
+ 
+@@ -28,7 +28,7 @@ target_compile_definitions(kwin_cube_config PRIVATE
+ # now.
+ # TODO: Drop this when KF6_MIN_VERSION >= 6.27.0
+ if(KF6KCMUtils_VERSION VERSION_GREATER_EQUAL "6.27.0")
+-    add_test(NAME kcm_cube_smoketest COMMAND kcmshell6 --smoke-test kwin/effects/configs/kwin_cube_config)
++    add_test(NAME kcm_cube_smoketest COMMAND kcmshell6 --smoke-test nwin/effects/configs/nwin_cube_config)
+     set_tests_properties(kcm_cube_smoketest PROPERTIES
+         ENVIRONMENT_MODIFICATION QT_PLUGIN_PATH=path_list_prepend:${CMAKE_BINARY_DIR}/bin
+     )
+diff --git a/kwin/effects/cube/kcm/cubeeffectkcm.cpp b/nwin/effects/cube/kcm/cubeeffectkcm.cpp
+similarity index 96%
+rename from kwin/effects/cube/kcm/cubeeffectkcm.cpp
+rename to nwin/effects/cube/kcm/cubeeffectkcm.cpp
+index fef2114..fbcab93 100644
+--- a/kwin/effects/cube/kcm/cubeeffectkcm.cpp
++++ b/nwin/effects/cube/kcm/cubeeffectkcm.cpp
+@@ -28,12 +28,12 @@ CubeEffectConfig::CubeEffectConfig(QObject *parent, const KPluginMetaData &data)
+     ui.setupUi(widget());
+ 
+     QFile xmlFile(QStringLiteral(":/main.xml"));
+-    KConfigGroup cg = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("Effect-cube"));
++    KConfigGroup cg = KSharedConfig::openConfig(QStringLiteral("nwinrc"))->group(QStringLiteral("Effect-cube"));
+     m_configLoader = new KConfigLoader(cg, &xmlFile, this);
+     addConfig(m_configLoader, widget());
+ 
+-    auto actionCollection = new KActionCollection(this, QStringLiteral("kwin"));
+-    actionCollection->setComponentDisplayName(i18n("KWin"));
++    auto actionCollection = new KActionCollection(this, QStringLiteral("nwin"));
++    actionCollection->setComponentDisplayName(i18n("NWin"));
+     actionCollection->setConfigGroup(QStringLiteral("Cube"));
+     actionCollection->setConfigGlobal(true);
+ 
+@@ -74,9 +74,9 @@ void CubeEffectConfig::save()
+     KCModule::save();
+     updateUnmanagedState();
+ 
+-    QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++    QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
+                                                                      QStringLiteral("/Effects"),
+-                                                                     QStringLiteral("org.kde.kwin.Effects"),
++                                                                     QStringLiteral("org.kde.NWin.Effects"),
+                                                                      QStringLiteral("reconfigureEffect"));
+     reconfigureMessage.setArguments({QStringLiteral("cube")});
+     QDBusConnection::sessionBus().call(reconfigureMessage);
+diff --git a/kwin/effects/cube/kcm/cubeeffectkcm.h b/nwin/effects/cube/kcm/cubeeffectkcm.h
+similarity index 100%
+rename from kwin/effects/cube/kcm/cubeeffectkcm.h
+rename to nwin/effects/cube/kcm/cubeeffectkcm.h
+diff --git a/kwin/effects/cube/kcm/cubeeffectkcm.ui b/nwin/effects/cube/kcm/cubeeffectkcm.ui
+similarity index 100%
+rename from kwin/effects/cube/kcm/cubeeffectkcm.ui
+rename to nwin/effects/cube/kcm/cubeeffectkcm.ui
+diff --git a/kwin/effects/cube/kcm/cubeeffectkcm.ui.license b/nwin/effects/cube/kcm/cubeeffectkcm.ui.license
+similarity index 100%
+rename from kwin/effects/cube/kcm/cubeeffectkcm.ui.license
+rename to nwin/effects/cube/kcm/cubeeffectkcm.ui.license
+diff --git a/kwin/effects/cube/kcm/resources.qrc b/nwin/effects/cube/kcm/resources.qrc
+similarity index 100%
+rename from kwin/effects/cube/kcm/resources.qrc
+rename to nwin/effects/cube/kcm/resources.qrc
+diff --git a/kwin/effects/cube/kcm/resources.qrc.license b/nwin/effects/cube/kcm/resources.qrc.license
+similarity index 100%
+rename from kwin/effects/cube/kcm/resources.qrc.license
+rename to nwin/effects/cube/kcm/resources.qrc.license
+diff --git a/kwin/effects/cube/package/contents/config/main.xml b/nwin/effects/cube/package/contents/config/main.xml
+similarity index 100%
+rename from kwin/effects/cube/package/contents/config/main.xml
+rename to nwin/effects/cube/package/contents/config/main.xml
+diff --git a/kwin/effects/cube/package/contents/ui/Cube.qml b/nwin/effects/cube/package/contents/ui/Cube.qml
+similarity index 93%
+rename from kwin/effects/cube/package/contents/ui/Cube.qml
+rename to nwin/effects/cube/package/contents/ui/Cube.qml
+index 9583e40..fba4822 100644
+--- a/kwin/effects/cube/package/contents/ui/Cube.qml
++++ b/nwin/effects/cube/package/contents/ui/Cube.qml
+@@ -6,7 +6,7 @@
+ 
+ import QtQuick
+ import QtQuick3D
+-import org.kde.kwin as KWinComponents
++import org.kde.nwin as NWinComponents
+ 
+ Node {
+     id: cube
+@@ -30,7 +30,7 @@ Node {
+ 
+     Repeater3D {
+         id: faceRepeater
+-        model: KWinComponents.VirtualDesktopModel {}
++        model: NWinComponents.VirtualDesktopModel {}
+         delegate: CubeFace {
+             faceSize: cube.faceSize
+             scale: Qt.vector3d(faceSize.width / 100, faceSize.height / 100, 1)
+diff --git a/kwin/effects/cube/package/contents/ui/CubeCameraController.qml b/nwin/effects/cube/package/contents/ui/CubeCameraController.qml
+similarity index 100%
+rename from kwin/effects/cube/package/contents/ui/CubeCameraController.qml
+rename to nwin/effects/cube/package/contents/ui/CubeCameraController.qml
+diff --git a/kwin/effects/cube/package/contents/ui/CubeFace.qml b/nwin/effects/cube/package/contents/ui/CubeFace.qml
+similarity index 100%
+rename from kwin/effects/cube/package/contents/ui/CubeFace.qml
+rename to nwin/effects/cube/package/contents/ui/CubeFace.qml
+diff --git a/kwin/effects/cube/package/contents/ui/DesktopView.qml b/nwin/effects/cube/package/contents/ui/DesktopView.qml
+similarity index 71%
+rename from kwin/effects/cube/package/contents/ui/DesktopView.qml
+rename to nwin/effects/cube/package/contents/ui/DesktopView.qml
+index 4f4946b..8b9115e 100644
+--- a/kwin/effects/cube/package/contents/ui/DesktopView.qml
++++ b/nwin/effects/cube/package/contents/ui/DesktopView.qml
+@@ -5,7 +5,7 @@
+ */
+ 
+ import QtQuick
+-import org.kde.kwin as KWinComponents
++import org.kde.nwin as NWinComponents
+ 
+ Item {
+     id: desktopView
+@@ -13,14 +13,14 @@ Item {
+     required property QtObject desktop
+ 
+     Repeater {
+-        model: KWinComponents.WindowFilterModel {
+-            activity: KWinComponents.Workspace.currentActivity
++        model: NWinComponents.WindowFilterModel {
++            activity: NWinComponents.Workspace.currentActivity
+             desktop: desktopView.desktop
+             screenName: targetScreen.name
+-            windowModel: KWinComponents.WindowModel {}
++            windowModel: NWinComponents.WindowModel {}
+         }
+ 
+-        KWinComponents.WindowThumbnail {
++        NWinComponents.WindowThumbnail {
+             wId: model.window.internalId
+             x: model.window.x - targetScreen.geometry.x
+             y: model.window.y - targetScreen.geometry.y
+diff --git a/kwin/effects/cube/package/contents/ui/PlaceholderView.qml b/nwin/effects/cube/package/contents/ui/PlaceholderView.qml
+similarity index 84%
+rename from kwin/effects/cube/package/contents/ui/PlaceholderView.qml
+rename to nwin/effects/cube/package/contents/ui/PlaceholderView.qml
+index 48584b1..6816ca4 100644
+--- a/kwin/effects/cube/package/contents/ui/PlaceholderView.qml
++++ b/nwin/effects/cube/package/contents/ui/PlaceholderView.qml
+@@ -7,7 +7,7 @@
+ import QtQuick
+ import QtQuick.Controls
+ import org.kde.kirigami as Kirigami
+-import org.kde.kwin as KWinComponents
++import org.kde.nwin as NWinComponents
+ import org.kde.plasma.components as PlasmaComponents
+ import org.kde.plasma.extras as PlasmaExtras
+ 
+@@ -27,11 +27,11 @@ Rectangle {
+                       "@info:placeholder",
+                       "At least 3 virtual desktops are required to display the Cube, but only %1 is present",
+                       "At least 3 virtual desktops are required to display the Cube, but only %1 are present",
+-                      KWinComponents.Workspace.desktops.length)
++                      NWinComponents.Workspace.desktops.length)
+         helpfulAction: Action {
+             text: i18ndc("kwin_effect_cube", "@action:button", "Add Virtual Desktop")
+             icon.name: "list-add-symbolic"
+-            onTriggered: KWinComponents.Workspace.createDesktop(KWinComponents.Workspace.desktops.length, "")
++            onTriggered: NWinComponents.Workspace.createDesktop(NWinComponents.Workspace.desktops.length, "")
+         }
+     }
+ 
+diff --git a/kwin/effects/cube/package/contents/ui/ScreenView.qml b/nwin/effects/cube/package/contents/ui/ScreenView.qml
+similarity index 91%
+rename from kwin/effects/cube/package/contents/ui/ScreenView.qml
+rename to nwin/effects/cube/package/contents/ui/ScreenView.qml
+index 37ed140..f6a1647 100644
+--- a/kwin/effects/cube/package/contents/ui/ScreenView.qml
++++ b/nwin/effects/cube/package/contents/ui/ScreenView.qml
+@@ -7,7 +7,7 @@
+ import QtQuick
+ import QtQuick.Window
+ import QtQuick3D
+-import org.kde.kwin as KWinComponents
++import org.kde.nwin as NWinComponents
+ 
+ import "constants.js" as Constants
+ 
+@@ -15,22 +15,22 @@ Item {
+     id: root
+     focus: true
+ 
+-    readonly property QtObject targetScreen: KWinComponents.SceneView.screen
++    readonly property QtObject targetScreen: NWinComponents.SceneView.screen
+     property QtObject currentDesktop: {
+-        if (typeof KWinComponents.Workspace.currentDesktopForScreen === "function") {
+-            return KWinComponents.Workspace.currentDesktopForScreen(root.targetScreen);
++        if (typeof NWinComponents.Workspace.currentDesktopForScreen === "function") {
++            return NWinComponents.Workspace.currentDesktopForScreen(root.targetScreen);
+         } else {
+             // Fallback for kwin-x11
+-            return KWinComponents.Workspace.currentDesktop;
++            return NWinComponents.Workspace.currentDesktop;
+         }
+     }
+ 
+     function switchTo(desktop) {
+-        if (typeof KWinComponents.Workspace.setCurrentDesktopForScreen === "function") {
+-            KWinComponents.Workspace.setCurrentDesktopForScreen(desktop, root.targetScreen);
++        if (typeof NWinComponents.Workspace.setCurrentDesktopForScreen === "function") {
++            NWinComponents.Workspace.setCurrentDesktopForScreen(desktop, root.targetScreen);
+         } else {
+             // Fallback for kwin-x11
+-            KWinComponents.Workspace.currentDesktop = desktop;
++            NWinComponents.Workspace.currentDesktop = desktop;
+         }
+ 
+         effect.deactivate();
+@@ -180,11 +180,11 @@ Item {
+     Keys.onSpacePressed: root.switchToSelected();
+ 
+     Connections {
+-        target: KWinComponents.Workspace
++        target: NWinComponents.Workspace
+         onCurrentDesktopChanged: (previous, current, screen) => {
+             // fallback for kwin-x11
+             if (current === undefined && screen === undefined) {
+-                root.currentDesktop = KWinComponents.Workspace.currentDesktop;
++                root.currentDesktop = NWinComponents.Workspace.currentDesktop;
+                 return;
+             }
+ 
+diff --git a/kwin/effects/cube/package/contents/ui/constants.js b/nwin/effects/cube/package/contents/ui/constants.js
+similarity index 100%
+rename from kwin/effects/cube/package/contents/ui/constants.js
+rename to nwin/effects/cube/package/contents/ui/constants.js
+diff --git a/kwin/effects/cube/package/contents/ui/main.qml b/nwin/effects/cube/package/contents/ui/main.qml
+similarity index 81%
+rename from kwin/effects/cube/package/contents/ui/main.qml
+rename to nwin/effects/cube/package/contents/ui/main.qml
+index 6b25311..689ce72 100644
+--- a/kwin/effects/cube/package/contents/ui/main.qml
++++ b/nwin/effects/cube/package/contents/ui/main.qml
+@@ -6,21 +6,21 @@
+ 
+ import QtQuick
+ import org.kde.kirigami as Kirigami
+-import org.kde.kwin as KWinComponents
++import org.kde.nwin as NWinComponents
+ 
+-KWinComponents.SceneEffect {
++NWinComponents.SceneEffect {
+     id: effect
+ 
+     property bool activated: false
+     readonly property int animationDuration: Kirigami.Units.longDuration
+ 
+     // stored as a property to keep the component alive and cleanup afterwards
+-    property var mainDelegate: KWinComponents.Workspace.desktops.length < 3 ? Qt.createComponent("PlaceholderView.qml") : Qt.createComponent("ScreenView.qml")
++    property var mainDelegate: NWinComponents.Workspace.desktops.length < 3 ? Qt.createComponent("PlaceholderView.qml") : Qt.createComponent("ScreenView.qml")
+     delegate: mainDelegate
+     Instantiator {
+         model: effect.configuration.BorderActivate
+-        KWinComponents.ScreenEdgeHandler {
+-            mode: KWinComponents.ScreenEdgeHandler.Pointer
++        NWinComponents.ScreenEdgeHandler {
++            mode: NWinComponents.ScreenEdgeHandler.Pointer
+             edge: modelData
+             onActivated: toggle();
+         }
+@@ -28,14 +28,14 @@ KWinComponents.SceneEffect {
+ 
+     Instantiator {
+         model: effect.configuration.TouchBorderActivate
+-        KWinComponents.ScreenEdgeHandler {
+-            mode: KWinComponents.ScreenEdgeHandler.Touch
++        NWinComponents.ScreenEdgeHandler {
++            mode: NWinComponents.ScreenEdgeHandler.Touch
+             edge: modelData
+             onActivated: toggle();
+         }
+     }
+ 
+-    KWinComponents.ShortcutHandler {
++    NWinComponents.ShortcutHandler {
+         name: "Cube"
+         text: i18nd("kwin_effect_cube", "Toggle Cube")
+         sequence: "Meta+C"
+diff --git a/kwin/effects/cube/package/metadata.json b/nwin/effects/cube/package/metadata.json
+similarity index 98%
+rename from kwin/effects/cube/package/metadata.json
+rename to nwin/effects/cube/package/metadata.json
+index 0d78103..9f3d6a7 100644
+--- a/kwin/effects/cube/package/metadata.json
++++ b/nwin/effects/cube/package/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/Effect",
++    "KPackageStructure": "NWin/Effect",
+     "KPlugin": {
+         "Authors": [
+             {
+@@ -139,8 +139,8 @@
+         "Name[zh_CN]": "立方体",
+         "Name[zh_TW]": "立體方塊"
+     },
+-    "X-KDE-ConfigModule": "kwin_cube_config",
++    "X-KDE-ConfigModule": "nwin_cube_config",
+     "X-KDE-Ordering": 60,
+-    "X-KWin-Border-Activate": true,
++    "X-NWin-Border-Activate": true,
+     "X-Plasma-API": "declarativescript"
+ }
+diff --git a/kwin/scripts/CMakeLists.txt b/nwin/scripts/CMakeLists.txt
+similarity index 100%
+rename from kwin/scripts/CMakeLists.txt
+rename to nwin/scripts/CMakeLists.txt
+diff --git a/kwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt b/nwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt
+similarity index 74%
+rename from kwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt
+rename to nwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt
+index df829c6..e10a892 100644
+--- a/kwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt
++++ b/nwin/scripts/virtualdesktopsonlyonprimary/CMakeLists.txt
+@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
+ include(KDEInstallDirs)
+ 
+ # Install the metadata file
+-install(FILES metadata.json DESTINATION ${KDE_INSTALL_DATADIR}/kwin/scripts/virtualdesktopsonlyonprimary/)
++install(FILES metadata.json DESTINATION ${KDE_INSTALL_DATADIR}/nwin/scripts/virtualdesktopsonlyonprimary/)
+ 
+ # Install the script files
+-install(DIRECTORY contents DESTINATION ${KDE_INSTALL_DATADIR}/kwin/scripts/virtualdesktopsonlyonprimary)
++install(DIRECTORY contents DESTINATION ${KDE_INSTALL_DATADIR}/nwin/scripts/virtualdesktopsonlyonprimary)
+diff --git a/kwin/scripts/virtualdesktopsonlyonprimary/contents/code/main.js b/nwin/scripts/virtualdesktopsonlyonprimary/contents/code/main.js
+similarity index 100%
+rename from kwin/scripts/virtualdesktopsonlyonprimary/contents/code/main.js
+rename to nwin/scripts/virtualdesktopsonlyonprimary/contents/code/main.js
+diff --git a/kwin/scripts/virtualdesktopsonlyonprimary/metadata.json b/nwin/scripts/virtualdesktopsonlyonprimary/metadata.json
+similarity index 99%
+rename from kwin/scripts/virtualdesktopsonlyonprimary/metadata.json
+rename to nwin/scripts/virtualdesktopsonlyonprimary/metadata.json
+index 888b089..010293c 100644
+--- a/kwin/scripts/virtualdesktopsonlyonprimary/metadata.json
++++ b/nwin/scripts/virtualdesktopsonlyonprimary/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/Script",
++    "KPackageStructure": "NWin/Script",
+     "KPlugin": {
+         "Authors": [
+             {
+diff --git a/kwin/windowswitchers/CMakeLists.txt b/nwin/windowswitchers/CMakeLists.txt
+similarity index 85%
+rename from kwin/windowswitchers/CMakeLists.txt
+rename to nwin/windowswitchers/CMakeLists.txt
+index 9872771..392a091 100644
+--- a/kwin/windowswitchers/CMakeLists.txt
++++ b/nwin/windowswitchers/CMakeLists.txt
+@@ -1,5 +1,5 @@
+ # packages
+-set(TABBOX_DIR ${KDE_INSTALL_DATADIR}/kwin/tabbox)
++set(TABBOX_DIR ${KDE_INSTALL_DATADIR}/nwin/tabbox)
+ install(DIRECTORY big_icons    DESTINATION ${TABBOX_DIR})
+ install(DIRECTORY compact      DESTINATION ${TABBOX_DIR})
+ install(DIRECTORY coverswitch  DESTINATION ${TABBOX_DIR})
+diff --git a/kwin/windowswitchers/big_icons/contents/ui/main.qml b/nwin/windowswitchers/big_icons/contents/ui/main.qml
+similarity index 97%
+rename from kwin/windowswitchers/big_icons/contents/ui/main.qml
+rename to nwin/windowswitchers/big_icons/contents/ui/main.qml
+index e14906f..cea4d1e 100644
+--- a/kwin/windowswitchers/big_icons/contents/ui/main.qml
++++ b/nwin/windowswitchers/big_icons/contents/ui/main.qml
+@@ -1,5 +1,5 @@
+ /*
+- KWin - the KDE window manager
++ NWin - the KDE window manager
+  This file is part of the KDE project.
+ 
+  SPDX-FileCopyrightText: 2011 Martin Gräßlin <mgraesslin@kde.org>
+@@ -12,9 +12,9 @@ import org.kde.plasma.core as PlasmaCore
+ import org.kde.kirigami as Kirigami
+ import org.kde.ksvg as KSvg
+ import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kwin as KWin
++import org.kde.nwin as NWin
+ 
+-KWin.TabBoxSwitcher {
++NWin.TabBoxSwitcher {
+     id: tabBox
+ 
+     currentIndex: (instantiator.object as BigIconsDialog)?.currentIndex ?? currentIndex
+@@ -103,7 +103,7 @@ KWin.TabBoxSwitcher {
+                     anchors.verticalCenterOffset: Math.round(captionLabel.height / 2)
+                     width: parent.width - Kirigami.Units.largeSpacing * 2
+                     icon.source: "edit-none"
+-                    text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++                    text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+                     visible: icons.count === 0
+                 }
+ 
+diff --git a/kwin/windowswitchers/big_icons/metadata.json b/nwin/windowswitchers/big_icons/metadata.json
+similarity index 99%
+rename from kwin/windowswitchers/big_icons/metadata.json
+rename to nwin/windowswitchers/big_icons/metadata.json
+index 240f254..81858b5 100644
+--- a/kwin/windowswitchers/big_icons/metadata.json
++++ b/nwin/windowswitchers/big_icons/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/WindowSwitcher",
++    "KPackageStructure": "NWin/WindowSwitcher",
+     "KPlugin": {
+         "Authors": [
+             {
+diff --git a/kwin/windowswitchers/compact/contents/ui/main.qml b/nwin/windowswitchers/compact/contents/ui/main.qml
+similarity index 98%
+rename from kwin/windowswitchers/compact/contents/ui/main.qml
+rename to nwin/windowswitchers/compact/contents/ui/main.qml
+index 7487ca7..e7eb0e2 100644
+--- a/kwin/windowswitchers/compact/contents/ui/main.qml
++++ b/nwin/windowswitchers/compact/contents/ui/main.qml
+@@ -1,5 +1,5 @@
+ /*
+- KWin - the KDE window manager
++ NWin - the KDE window manager
+  This file is part of the KDE project.
+ 
+  SPDX-FileCopyrightText: 2011 Martin Gräßlin <mgraesslin@kde.org>
+@@ -12,9 +12,9 @@ import org.kde.plasma.core as PlasmaCore
+ import org.kde.kirigami as Kirigami
+ import org.kde.ksvg as KSvg
+ import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kwin as KWin
++import org.kde.nwin as NWin
+ 
+-KWin.TabBoxSwitcher {
++NWin.TabBoxSwitcher {
+     id: tabBox
+     currentIndex: compactListView.currentIndex
+ 
+@@ -157,7 +157,7 @@ KWin.TabBoxSwitcher {
+                         id: placeholderLabel
+                         horizontalAlignment: Text.AlignLeft
+                         verticalAlignment: Text.AlignBottom
+-                        text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++                        text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+                         textFormat: Text.PlainText
+                         Layout.fillWidth: true
+                         Layout.rightMargin: hoverItem.margins.right
+diff --git a/kwin/windowswitchers/compact/metadata.json b/nwin/windowswitchers/compact/metadata.json
+similarity index 99%
+rename from kwin/windowswitchers/compact/metadata.json
+rename to nwin/windowswitchers/compact/metadata.json
+index 7b83f2a..79d1fe1 100644
+--- a/kwin/windowswitchers/compact/metadata.json
++++ b/nwin/windowswitchers/compact/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/WindowSwitcher",
++    "KPackageStructure": "NWin/WindowSwitcher",
+     "KPlugin": {
+         "Authors": [
+             {
+diff --git a/kwin/windowswitchers/coverswitch/contents/ui/main.qml b/nwin/windowswitchers/coverswitch/contents/ui/main.qml
+similarity index 96%
+rename from kwin/windowswitchers/coverswitch/contents/ui/main.qml
+rename to nwin/windowswitchers/coverswitch/contents/ui/main.qml
+index cb00725..ca0b919 100644
+--- a/kwin/windowswitchers/coverswitch/contents/ui/main.qml
++++ b/nwin/windowswitchers/coverswitch/contents/ui/main.qml
+@@ -13,11 +13,11 @@ import org.kde.kirigami as Kirigami
+ import org.kde.ksvg  as KSvg
+ import org.kde.plasma.components as PC3
+ 
+-import org.kde.kwin as KWin
+-import org.kde.kwin.private.effects
++import org.kde.nwin as NWin
++import org.kde.nwin.private.effects
+ 
+ 
+-KWin.TabBoxSwitcher {
++NWin.TabBoxSwitcher {
+     id: tabBox
+     currentIndex: thumbnailView ? thumbnailView.currentIndex : -1
+ 
+@@ -40,9 +40,9 @@ KWin.TabBoxSwitcher {
+ 
+         Accessible.name: currentItem?.caption
+ 
+-        KWin.DesktopBackground {
+-            activity: KWin.Workspace.currentActivity
+-            desktop: KWin.Workspace.currentVirtualDesktop
++        NWin.DesktopBackground {
++            activity: NWin.Workspace.currentActivity
++            desktop: NWin.Workspace.currentDesktop
+             outputName: window.screen.name
+ 
+             layer.enabled: true
+@@ -67,7 +67,7 @@ KWin.TabBoxSwitcher {
+             anchors.centerIn: parent
+             width: parent.width - Kirigami.Units.largeSpacing * 2
+             icon.source: "edit-none"
+-            text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++            text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+             visible: thumbnailView.count === 0
+         }
+ 
+@@ -164,7 +164,7 @@ KWin.TabBoxSwitcher {
+                 z: PathView.onPath ? Math.floor(PathView.progress * thumbnailView.visibleCount) : -1
+                 Accessible.name: caption
+ 
+-                KWin.WindowThumbnail {
++                NWin.WindowThumbnail {
+                     id: thumbnail
+                     readonly property double ratio: implicitWidth / implicitHeight
+ 
+@@ -273,7 +273,7 @@ KWin.TabBoxSwitcher {
+             anchors.centerIn: parent
+             width: parent.width - Kirigami.Units.largeSpacing * 2
+             icon.source: "edit-none"
+-            text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++            text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+             visible: thumbnailView.count === 0
+         }
+ 
+diff --git a/kwin/windowswitchers/coverswitch/metadata.json b/nwin/windowswitchers/coverswitch/metadata.json
+similarity index 99%
+rename from kwin/windowswitchers/coverswitch/metadata.json
+rename to nwin/windowswitchers/coverswitch/metadata.json
+index 2d124ae..909034c 100644
+--- a/kwin/windowswitchers/coverswitch/metadata.json
++++ b/nwin/windowswitchers/coverswitch/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/WindowSwitcher",
++    "KPackageStructure": "NWin/WindowSwitcher",
+     "KPlugin": {
+         "Authors": [
+             {
+diff --git a/kwin/windowswitchers/flipswitch/contents/ui/main.qml b/nwin/windowswitchers/flipswitch/contents/ui/main.qml
+similarity index 96%
+rename from kwin/windowswitchers/flipswitch/contents/ui/main.qml
+rename to nwin/windowswitchers/flipswitch/contents/ui/main.qml
+index 566d3c6..19fb9ab 100644
+--- a/kwin/windowswitchers/flipswitch/contents/ui/main.qml
++++ b/nwin/windowswitchers/flipswitch/contents/ui/main.qml
+@@ -13,11 +13,11 @@ import org.kde.kirigami as Kirigami
+ import org.kde.ksvg as KSvg
+ import org.kde.plasma.components as PC3
+ 
+-import org.kde.kwin as KWin
+-import org.kde.kwin.private.effects
++import org.kde.nwin as NWin
++import org.kde.nwin.private.effects
+ 
+ 
+-KWin.TabBoxSwitcher {
++NWin.TabBoxSwitcher {
+     id: tabBox
+     currentIndex: thumbnailView ? thumbnailView.currentIndex : -1
+ 
+@@ -38,9 +38,9 @@ KWin.TabBoxSwitcher {
+ 
+         color: "transparent"
+ 
+-        KWin.DesktopBackground {
+-            activity: KWin.Workspace.currentActivity
+-            desktop: KWin.Workspace.currentVirtualDesktop
++        NWin.DesktopBackground {
++            activity: NWin.Workspace.currentActivity
++            desktop: NWin.Workspace.currentDesktop
+             outputName: window.screen.name
+ 
+             layer.enabled: true
+@@ -134,7 +134,7 @@ KWin.TabBoxSwitcher {
+ 
+                 Accessible.name: caption
+ 
+-                KWin.WindowThumbnail {
++                NWin.WindowThumbnail {
+                     id: thumbnail
+                     readonly property double ratio: implicitWidth / implicitHeight
+ 
+@@ -234,7 +234,7 @@ KWin.TabBoxSwitcher {
+             anchors.centerIn: parent
+             width: parent.width - Kirigami.Units.largeSpacing * 2
+             icon.source: "edit-none"
+-            text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++            text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+             visible: thumbnailView.count === 0
+         }
+ 
+diff --git a/kwin/windowswitchers/flipswitch/metadata.json b/nwin/windowswitchers/flipswitch/metadata.json
+similarity index 99%
+rename from kwin/windowswitchers/flipswitch/metadata.json
+rename to nwin/windowswitchers/flipswitch/metadata.json
+index 203bda9..6379f49 100644
+--- a/kwin/windowswitchers/flipswitch/metadata.json
++++ b/nwin/windowswitchers/flipswitch/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/WindowSwitcher",
++    "KPackageStructure": "NWin/WindowSwitcher",
+     "KPlugin": {
+         "Authors": [
+             {
+diff --git a/kwin/windowswitchers/sidebar/contents/ui/main.qml b/nwin/windowswitchers/sidebar/contents/ui/main.qml
+similarity index 96%
+rename from kwin/windowswitchers/sidebar/contents/ui/main.qml
+rename to nwin/windowswitchers/sidebar/contents/ui/main.qml
+index 1f8db08..bcb408a 100644
+--- a/kwin/windowswitchers/sidebar/contents/ui/main.qml
++++ b/nwin/windowswitchers/sidebar/contents/ui/main.qml
+@@ -11,9 +11,9 @@ import org.kde.plasma.components as PlasmaComponents
+ import org.kde.plasma.core as PlasmaCore
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.extras as PlasmaExtras
+-import org.kde.kwin as KWin
++import org.kde.nwin as NWin
+ 
+-KWin.TabBoxSwitcher {
++NWin.TabBoxSwitcher {
+     id: tabBox
+ 
+     readonly property real screenFactor: screenGeometry.width / screenGeometry.height
+@@ -86,7 +86,7 @@ KWin.TabBoxSwitcher {
+                             Layout.fillWidth: true
+                             implicitHeight: Math.round(delegateColumn.width / tabBox.screenFactor)
+ 
+-                            KWin.WindowThumbnail {
++                            NWin.WindowThumbnail {
+                                 anchors.fill: parent
+                                 wId: windowId
+                             }
+@@ -123,7 +123,7 @@ KWin.TabBoxSwitcher {
+                     anchors.centerIn: parent
+                     width: parent.width - Kirigami.Units.largeSpacing * 2
+                     icon.source: "edit-none"
+-                    text: i18ndc("kwin", "@info:placeholder no entries in the task switcher", "No open windows")
++                    text: i18ndc("nwin", "@info:placeholder no entries in the task switcher", "No open windows")
+                     visible: thumbnailListView.count === 0
+                 }
+             }
+diff --git a/kwin/windowswitchers/sidebar/metadata.json b/nwin/windowswitchers/sidebar/metadata.json
+similarity index 99%
+rename from kwin/windowswitchers/sidebar/metadata.json
+rename to nwin/windowswitchers/sidebar/metadata.json
+index 2d3f2df..ccdc7da 100644
+--- a/kwin/windowswitchers/sidebar/metadata.json
++++ b/nwin/windowswitchers/sidebar/metadata.json
+@@ -1,5 +1,5 @@
+ {
+-    "KPackageStructure": "KWin/WindowSwitcher",
++    "KPackageStructure": "NWin/WindowSwitcher",
+     "KPlugin": {
+         "Authors": [
+             {

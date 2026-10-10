@@ -1,0 +1,5 @@
+File=zoom.kcfg
+ClassName=ZoomConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

@@ -1,0 +1,1 @@
+nwin_add_script(desktopchangeosd package)

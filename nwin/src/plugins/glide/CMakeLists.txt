@@ -1,0 +1,36 @@
+#######################################
+# Effect
+
+set(glide_SOURCES
+    glide.cpp
+    main.cpp
+)
+
+kconfig_add_kcfg_files(glide_SOURCES
+    glideconfig.kcfgc
+)
+
+nwin_add_builtin_effect(glide ${glide_SOURCES})
+target_link_libraries(glide PRIVATE
+    nwin
+
+    KF6::ConfigGui
+)
+
+#######################################
+# Config
+if (NWIN_BUILD_KCMS)
+    set(nwin_glide_config_SRCS glide_config.cpp)
+    ki18n_wrap_ui(nwin_glide_config_SRCS glide_config.ui)
+    kconfig_add_kcfg_files(nwin_glide_config_SRCS glideconfig.kcfgc)
+
+    nwin_add_effect_config(nwin_glide_config ${nwin_glide_config_SRCS})
+
+    target_link_libraries(nwin_glide_config
+        KF6::KCMUtils
+        KF6::CoreAddons
+        KF6::I18n
+        Qt::DBus
+        NWinEffectsInterface
+    )
+endif()

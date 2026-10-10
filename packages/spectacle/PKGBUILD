@@ -1,0 +1,83 @@
+# Native NWin adaptation of Arch's Spectacle recipe.
+# Upstream Arch maintainer: Antonio Rojas <arojas@archlinux.org>
+# Stock recipe: https://gitlab.archlinux.org/archlinux/packaging/packages/spectacle/-/blob/9bde37a7650e2f10e25f82b43fa891debf46b1c9/PKGBUILD
+# The patch also carries the stock Arch OpenCV 5 build adjustment.
+pkgname=nwin-spectacle
+pkgver=6.7.5
+pkgrel=1
+epoch=1
+pkgdesc='KDE screenshot capture utility for native NWin'
+arch=(x86_64)
+url='https://kde.org/plasma-desktop/'
+license=(GPL-2.0-or-later)
+depends=(glibc
+         kconfig
+         kconfigwidgets
+         kcoreaddons
+         kcrash
+         kdbusaddons
+         kglobalaccel
+         kguiaddons
+         ki18n
+         kio
+         kirigami
+         kjobwidgets
+         knotifications
+         kpipewire
+         kquickimageeditor
+         kservice
+         kstatusnotifieritem
+         kwidgetsaddons
+         kwindowsystem
+         kxmlgui
+         layer-shell-qt
+         libgcc
+         libstdc++
+         libxcb
+         opencv
+         prison
+         purpose
+         qt6-base
+         qt6-declarative
+         qt6-imageformats
+         qt6-multimedia
+         tesseract
+         wayland
+         xcb-util
+         xcb-util-cursor
+         xcb-util-image)
+makedepends=(extra-cmake-modules
+             kdoctools
+             plasma-wayland-protocols
+             git)
+groups=(plasma)
+provides=("spectacle=$epoch:$pkgver")
+conflicts=(spectacle)
+source=("https://download.kde.org/stable/plasma/$pkgver/spectacle-$pkgver.tar.xz"
+        "https://download.kde.org/stable/plasma/$pkgver/spectacle-$pkgver.tar.xz.sig"
+        nwin-spectacle.patch)
+sha256sums=('2a63a8da331f9249e0ff0091a38f2fa946c7b85c7b7133bd8b60dd524e8e01b8'
+            'SKIP'
+            '6a51434398c6ca6a8422d8d7abeac64b4d356946e55f20b60704ed7486ed0cb1')
+validpgpkeys=('E0A3EB202F8E57528E13E72FD7574483BB57B18D'  # Jonathan Esk-Riddell <jr@jriddell.org>
+              '0AAC775BB6437A8D9AF7A3ACFE0784117FBCE11D'  # Bhushan Shah <bshah@kde.org>
+              'D07BD8662C56CB291B316EB2F5675605C74E02CF'  # David Edmundson <davidedmundson@kde.org>
+              '1FA881591C26B276D7A5518EEAAF29B42A678C20') # Marco Martin <notmart@gmail.com>
+
+prepare() {
+  cd "$srcdir/spectacle-$pkgver"
+  git apply "$srcdir/nwin-spectacle.patch"
+}
+
+build() {
+  cmake -B "$srcdir/build" -S "$srcdir/spectacle-$pkgver" \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DKDE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build "$srcdir/build"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+}

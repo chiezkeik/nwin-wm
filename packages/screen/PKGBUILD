@@ -1,0 +1,36 @@
+# Native compositor integration; KScreen's public library ABI remains unchanged.
+pkgname=nwin-libkscreen
+pkgver=6.7.5
+pkgrel=1
+pkgdesc='KDE screen management library with native NWin integration'
+arch=(x86_64)
+url='https://kde.org/plasma-desktop/'
+license=(LGPL-2.0-or-later)
+groups=(plasma)
+provides=("libkscreen=$pkgver")
+conflicts=(libkscreen)
+options=(!debug)
+depends=(glibc libgcc libstdc++ libxcb qt6-base wayland nwin)
+makedepends=(cmake ninja git extra-cmake-modules plasma-wayland-protocols qt6-tools)
+source=("libkscreen::git+https://github.com/KDE/libkscreen.git#tag=v$pkgver"
+        nwin-screen.patch)
+sha256sums=('SKIP'
+            'd09b68a2dc20915c22a06b341744afc9e202d65c90033da40b21eb952ce345d9')
+
+prepare() {
+  cd libkscreen
+  git apply "$srcdir/nwin-screen.patch"
+}
+
+build() {
+  cmake -B build -S libkscreen -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DKDE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

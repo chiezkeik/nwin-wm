@@ -1,0 +1,3802 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index bd3ecd5..f6debdb 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,9 +37,9 @@ include(ECMQmlModule)
+ include(ECMConfiguredInstall)
+ 
+ option(BUILD_DOC "Whether to build the documentation" ON)
+-option(BUILD_KCM_MOUSE_KWIN_WAYLAND "Build the Mouse KCM's KWin+Wayland backend" ON)
++option(BUILD_KCM_MOUSE_NWIN_WAYLAND "Build the Mouse KCM's NWin+Wayland backend" ON)
+ option(BUILD_KCM_MOUSE_X11 "Build the Mouse KCM's X11 backend" ON)
+-option(BUILD_KCM_TOUCHPAD_KWIN_WAYLAND "Build the Touchpad KCM's KWin+Wayland backend" ON)
++option(BUILD_KCM_TOUCHPAD_NWIN_WAYLAND "Build the Touchpad KCM's NWin+Wayland backend" ON)
+ option(BUILD_KCM_TOUCHPAD_X11 "Build the Touchpad KCM's X11 backend" ON)
+ option(BUILD_KCM_TABLET "Build the Tablet KCM" ON)
+ 
+@@ -185,7 +185,7 @@ find_package(LibKLookAndFeel ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+ find_package(LibKWorkspace ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+ find_package(LibNotificationManager ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+ find_package(LibTaskManager ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+-find_package(KWinDBusInterface CONFIG REQUIRED)
++find_package(NWinDBusInterface CONFIG REQUIRED)
+ find_package(ScreenSaverDBusInterface CONFIG REQUIRED)
+ find_package(KRunnerAppDBusInterface CONFIG REQUIRED)
+ find_package(KSMServerDBusInterface CONFIG REQUIRED)
+diff --git a/README.md b/README.md
+index ad6e7a7..3d4c6e7 100644
+--- a/README.md
++++ b/README.md
+@@ -18,6 +18,28 @@ This repository contains only components specific to the desktop form factor. Co
+ 
+ The easiest way to make changes and test Plasma Desktop during development is to [build it with kdesrc-build](https://develop.kde.org/docs/getting-started/building/).
+ 
++### Native NWin integration
++
++This replacement desktop uses NWin directly on Wayland: `org.kde.NWin` at
++`/NWin`, native effects interfaces, and the device manager at
++`/org/kde/NWin/InputDevice`. Device settings use
++`org.kde.NWin.InputDevice` at `/org/kde/NWin/InputDevice/<sysname>`.
++Compositor configuration is stored in `nwinrc`, and compositor shortcuts belong
++to the `nwin` component. External X11 sessions retain their separate KWin
++interfaces, `kwinrc`, shortcut component, and `_x11` virtual desktop KCM.
++
++Building requires the matching NWin SDK's `NWinDBusInterfaceConfig.cmake`
++and `NWIN_INPUTDEVICE_INTERFACE` XML definition. CMake can discover a staged
++SDK through the normal `CMAKE_PREFIX_PATH`; install only into the package
++staging directory. The native workspace provides the matching
++`plasma-interactiveconsole --windowmanager` interface.
++
++Native integration entrypoints include the Mouse, Touchpad, Drawing Tablet,
++Touchscreen, Accessibility, Game Controller, Workspace Behavior, and Shortcuts
++settings, the Show Desktop, Pager, and Task Manager applets, and the
++`nwin debug console` KRunner command. Generic Plasma services, external
++KWindowSystem APIs, and published Wayland protocol names remain unchanged.
++
+ ## Contributing
+ 
+ Like other projects in the KDE ecosystem, contributions are welcome from all. This repository is managed on [KDE Invent](https://invent.kde.org/plasma/plasma-desktop), our GitLab instance.
+diff --git a/applets/pager/qml/main.qml b/applets/pager/qml/main.qml
+index 514099e..b2a9494 100644
+--- a/applets/pager/qml/main.qml
++++ b/applets/pager/qml/main.qml
+@@ -598,13 +598,13 @@ PlasmoidItem {
+         PlasmaCore.Action {
+             text: i18nc("@action:inmenu widget context menu", "Add Virtual Desktop") // qmllint disable unqualified
+             icon.name: "list-add"
+-            visible: !root.isActivityPager && KConfig.KAuthorized.authorize("kcm_kwin_virtualdesktops")
++            visible: !root.isActivityPager && KConfig.KAuthorized.authorize(Qt.platform.pluginName.includes("wayland") ? "kcm_nwin_virtualdesktops" : "kcm_kwin_virtualdesktops_x11")
+             onTriggered: pagerModel.addDesktop()
+         },
+         PlasmaCore.Action {
+             text: i18nc("@action:inmenu widget context menu", "Remove Virtual Desktop") // qmllint disable unqualified
+             icon.name: "list-remove"
+-            visible: !root.isActivityPager && KConfig.KAuthorized.authorize("kcm_kwin_virtualdesktops")
++            visible: !root.isActivityPager && KConfig.KAuthorized.authorize(Qt.platform.pluginName.includes("wayland") ? "kcm_nwin_virtualdesktops" : "kcm_kwin_virtualdesktops_x11")
+             enabled: repeater.count > 1
+             onTriggered: pagerModel.removeDesktop()
+         },
+@@ -615,10 +615,10 @@ PlasmoidItem {
+         },
+         PlasmaCore.Action {
+             text: i18nc("@action:inmenu widget context menu", "Configure Virtual Desktops…") // qmllint disable unqualified
+-            visible: !root.isActivityPager && KConfig.KAuthorized.authorize("kcm_kwin_virtualdesktops")
++            visible: !root.isActivityPager && KConfig.KAuthorized.authorize(Qt.platform.pluginName.includes("wayland") ? "kcm_nwin_virtualdesktops" : "kcm_kwin_virtualdesktops_x11")
+             onTriggered: {
+                 if (Qt.platform.pluginName.includes("wayland"))
+-                    KCM.KCMLauncher.openSystemSettings("kcm_kwin_virtualdesktops")
++                    KCM.KCMLauncher.openSystemSettings("kcm_nwin_virtualdesktops")
+                 else
+                     KCM.KCMLauncher.openSystemSettings("kcm_kwin_virtualdesktops_x11")
+             }
+diff --git a/applets/showdesktop/CMakeLists.txt b/applets/showdesktop/CMakeLists.txt
+index c373a95..95e9f75 100644
+--- a/applets/showdesktop/CMakeLists.txt
++++ b/applets/showdesktop/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ add_definitions(-DTRANSLATION_DOMAIN="plasma_applet_org.kde.plasma.showdesktop")
+ 
+-qt_add_dbus_interface(showdesktop_SRCS org.kde.KWin.xml kwin_interface)
++qt_add_dbus_interface(showdesktop_SRCS org.kde.NWin.xml nwin_interface)
+ 
+ plasma_add_applet(org.kde.plasma.showdesktop
+     QML_SOURCES
+diff --git a/applets/showdesktop/org.kde.KWin.xml b/applets/showdesktop/org.kde.NWin.xml
+similarity index 93%
+rename from applets/showdesktop/org.kde.KWin.xml
+rename to applets/showdesktop/org.kde.NWin.xml
+index 0932bff..077c580 100644
+--- a/applets/showdesktop/org.kde.KWin.xml
++++ b/applets/showdesktop/org.kde.NWin.xml
+@@ -1,7 +1,7 @@
+ <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+ <node>
+-  <interface name="org.kde.KWin">
++  <interface name="org.kde.NWin">
+     <property name="showingDesktop" type="b" access="read"/>
+     <method name="showDesktop">
+         <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
+diff --git a/applets/showdesktop/showdesktop.cpp b/applets/showdesktop/showdesktop.cpp
+index 2539659..6ff0454 100644
+--- a/applets/showdesktop/showdesktop.cpp
++++ b/applets/showdesktop/showdesktop.cpp
+@@ -11,8 +11,10 @@
+ ShowDesktop::ShowDesktop(QObject *parent)
+     : QObject(parent)
+ {
+-    m_interface = new OrgKdeKWinInterface(QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"), QDBusConnection::sessionBus(), this);
+-    connect(m_interface, &OrgKdeKWinInterface::showingDesktopChanged, this, &ShowDesktop::showingDesktopChanged);
++    if (KWindowSystem::isPlatformWayland()) {
++        m_interface = new OrgKdeNWinInterface(QStringLiteral("org.kde.NWin"), QStringLiteral("/NWin"), QDBusConnection::sessionBus(), this);
++        connect(m_interface, &OrgKdeNWinInterface::showingDesktopChanged, this, &ShowDesktop::showingDesktopChanged);
++    }
+ 
+     connect(KWindowSystem::self(), &KWindowSystem::showingDesktopChanged, this, &ShowDesktop::showingDesktopChanged);
+ }
+@@ -21,7 +23,7 @@ ShowDesktop::~ShowDesktop() = default;
+ 
+ bool ShowDesktop::showingDesktop() const
+ {
+-    if (m_interface->isValid()) {
++    if (m_interface && m_interface->isValid()) {
+         return m_interface->showingDesktop();
+     }
+ 
+@@ -30,7 +32,7 @@ bool ShowDesktop::showingDesktop() const
+ 
+ void ShowDesktop::setShowingDesktop(bool showingDesktop)
+ {
+-    if (m_interface->isValid()) {
++    if (m_interface && m_interface->isValid()) {
+         m_interface->showDesktop(showingDesktop);
+     } else {
+         KWindowSystem::setShowingDesktop(showingDesktop);
+diff --git a/applets/showdesktop/showdesktop.h b/applets/showdesktop/showdesktop.h
+index e1d678b..b641386 100644
+--- a/applets/showdesktop/showdesktop.h
++++ b/applets/showdesktop/showdesktop.h
+@@ -9,7 +9,7 @@
+ #include <QObject>
+ #include <qqmlintegration.h>
+ 
+-#include "kwin_interface.h"
++#include "nwin_interface.h"
+ 
+ class ShowDesktop : public QObject
+ {
+@@ -31,5 +31,5 @@ Q_SIGNALS:
+     void showingDesktopChanged(bool showingDesktop);
+ 
+ private:
+-    OrgKdeKWinInterface *m_interface;
++    OrgKdeNWinInterface *m_interface = nullptr;
+ };
+diff --git a/applets/taskmanager/qml/ConfigBehavior.qml b/applets/taskmanager/qml/ConfigBehavior.qml
+index bd4b7cf..8379757 100644
+--- a/applets/taskmanager/qml/ConfigBehavior.qml
++++ b/applets/taskmanager/qml/ConfigBehavior.qml
+@@ -54,7 +54,7 @@ KCMUtils.SimpleKCM {
+     DBus.DBusServiceWatcher {
+         id: effectWatcher
+         busType: DBus.BusType.Session
+-        watchedService: "org.kde.KWin.Effect.WindowView1"
++        watchedService: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.Effect.WindowView1" : "org.kde.KWin.Effect.WindowView1")
+     }
+ 
+     Kirigami.FormLayout {
+diff --git a/applets/taskmanager/qml/main.qml b/applets/taskmanager/qml/main.qml
+index 164bf2f..9e2f65e 100644
+--- a/applets/taskmanager/qml/main.qml
++++ b/applets/taskmanager/qml/main.qml
+@@ -102,11 +102,11 @@ PlasmoidItem {
+         if (!Plasmoid.configuration.highlightWindows) {
+             return;
+         }
+-        return DBus.SessionBus.asyncCall({service: "org.kde.KWin.HighlightWindow", path: "/org/kde/KWin/HighlightWindow", iface: "org.kde.KWin.HighlightWindow", member: "highlightWindows", arguments: [hovered ? winIds : []], signature: "(as)"});
++        return DBus.SessionBus.asyncCall({service: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.HighlightWindow" : "org.kde.KWin.HighlightWindow"), path: (Qt.platform.pluginName.includes("wayland") ? "/org/kde/NWin/HighlightWindow" : "/org/kde/KWin/HighlightWindow"), iface: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.HighlightWindow" : "org.kde.KWin.HighlightWindow"), member: "highlightWindows", arguments: [hovered ? winIds : []], signature: "(as)"});
+     }
+ 
+     function cancelHighlightWindows(): DBus.DBusPendingReply {
+-        return DBus.SessionBus.asyncCall({service: "org.kde.KWin.HighlightWindow", path: "/org/kde/KWin/HighlightWindow", iface: "org.kde.KWin.HighlightWindow", member: "highlightWindows", arguments: [[]], signature: "(as)"});
++        return DBus.SessionBus.asyncCall({service: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.HighlightWindow" : "org.kde.KWin.HighlightWindow"), path: (Qt.platform.pluginName.includes("wayland") ? "/org/kde/NWin/HighlightWindow" : "/org/kde/KWin/HighlightWindow"), iface: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.HighlightWindow" : "org.kde.KWin.HighlightWindow"), member: "highlightWindows", arguments: [[]], signature: "(as)"});
+     }
+ 
+     function activateWindowView(winIds: var): DBus.DBusPendingReply {
+@@ -114,7 +114,7 @@ PlasmoidItem {
+             return;
+         }
+         cancelHighlightWindows();
+-        return DBus.SessionBus.asyncCall({service: "org.kde.KWin.Effect.WindowView1", path: "/org/kde/KWin/Effect/WindowView1", iface: "org.kde.KWin.Effect.WindowView1", member: "activate", arguments: [winIds.map(s => String(s))], signature: "(as)"});
++        return DBus.SessionBus.asyncCall({service: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.Effect.WindowView1" : "org.kde.KWin.Effect.WindowView1"), path: (Qt.platform.pluginName.includes("wayland") ? "/org/kde/NWin/Effect/WindowView1" : "/org/kde/KWin/Effect/WindowView1"), iface: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.Effect.WindowView1" : "org.kde.KWin.Effect.WindowView1"), member: "activate", arguments: [winIds.map(s => String(s))], signature: "(as)"});
+     }
+ 
+     function publishIconGeometries(taskItems: /*list<Item>*/var): void {
+@@ -241,7 +241,7 @@ PlasmoidItem {
+     DBus.DBusServiceWatcher {
+         id: effectWatcher
+         busType: DBus.BusType.Session
+-        watchedService: "org.kde.KWin.Effect.WindowView1"
++        watchedService: (Qt.platform.pluginName.includes("wayland") ? "org.kde.NWin.Effect.WindowView1" : "org.kde.KWin.Effect.WindowView1")
+     }
+ 
+     readonly property Component taskInitComponent: Component {
+diff --git a/config-build-options.h.cmake b/config-build-options.h.cmake
+index 1a8a942..1f462a5 100644
+--- a/config-build-options.h.cmake
++++ b/config-build-options.h.cmake
+@@ -1,4 +1,4 @@
+-#cmakedefine01 BUILD_KCM_MOUSE_KWIN_WAYLAND
++#cmakedefine01 BUILD_KCM_MOUSE_NWIN_WAYLAND
+ #cmakedefine01 BUILD_KCM_MOUSE_X11
+-#cmakedefine01 BUILD_KCM_TOUCHPAD_KWIN_WAYLAND
++#cmakedefine01 BUILD_KCM_TOUCHPAD_NWIN_WAYLAND
+ #cmakedefine01 BUILD_KCM_TOUCHPAD_X11
+diff --git a/kaccess/kaccess.cpp b/kaccess/kaccess.cpp
+index 6e22ddc..544d10d 100644
+--- a/kaccess/kaccess.cpp
++++ b/kaccess/kaccess.cpp
+@@ -415,7 +415,7 @@ void KAccessApp::xkbStateNotify()
+     // On Wayland kaccess runs as XWayland app.
+     // Depending on the key sniffing settings we may or may not get key
+     // events from XWayland.
+-    // On Wayland KWin shows these notifications, so don't do anything here
++    // On Wayland NWin shows these notifications, so don't do anything here
+     if (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland")) {
+         return;
+     }
+@@ -457,9 +457,9 @@ void KAccessApp::xkbBellNotify(xcb_xkb_bell_notify_event_t *event)
+     if (event->eventOnly)
+         return;
+ 
+-    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                      QStringLiteral("/org/kde/KWin/Effect/SystemBell1"),
+-                                                      QStringLiteral("org.kde.KWin.Effect.SystemBell1"),
++    QDBusMessage msg = QDBusMessage::createMethodCall((qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland") ? QStringLiteral("org.kde.NWin") : QStringLiteral("org.kde.KWin")),
++                                                      (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland") ? QStringLiteral("/org/kde/NWin/Effect/SystemBell1") : QStringLiteral("/org/kde/KWin/Effect/SystemBell1")),
++                                                      (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland") ? QStringLiteral("org.kde.NWin.Effect.SystemBell1") : QStringLiteral("org.kde.KWin.Effect.SystemBell1")),
+                                                       QStringLiteral("triggerWindow"));
+ 
+     QDBusConnection::sessionBus().call(msg, QDBus::NoBlock);
+diff --git a/kcms/CMakeLists.txt b/kcms/CMakeLists.txt
+index 43ad7d4..829565e 100644
+--- a/kcms/CMakeLists.txt
++++ b/kcms/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ remove_definitions(-DQT_NO_CAST_FROM_ASCII -DQT_STRICT_ITERATORS -DQT_NO_CAST_FROM_BYTEARRAY -DQT_NO_KEYWORDS)
+ 
+-add_subdirectory(libkwindevices)
++add_subdirectory(libnwindevices)
+ 
+ if(X11_Xkb_FOUND AND XCB_XKB_FOUND)
+     add_subdirectory( keyboard )
+@@ -33,11 +33,11 @@ if (KF6Baloo_FOUND)
+ endif()
+ add_subdirectory(solid_actions)
+ 
+-if (BUILD_KCM_MOUSE_KWIN_WAYLAND OR BUILD_KCM_MOUSE_X11)
++if (BUILD_KCM_MOUSE_NWIN_WAYLAND OR BUILD_KCM_MOUSE_X11)
+     add_subdirectory(mouse)
+ endif()
+ 
+-if (BUILD_KCM_TOUCHPAD_KWIN_WAYLAND OR BUILD_KCM_TOUCHPAD_X11)
++if (BUILD_KCM_TOUCHPAD_NWIN_WAYLAND OR BUILD_KCM_TOUCHPAD_X11)
+     add_subdirectory(touchpad)
+ endif()
+ 
+diff --git a/kcms/access/CMakeLists.txt b/kcms/access/CMakeLists.txt
+index 5f2c85a..3d65c78 100644
+--- a/kcms/access/CMakeLists.txt
++++ b/kcms/access/CMakeLists.txt
+@@ -6,7 +6,7 @@ kcmutils_add_qml_kcm(kcm_access SOURCES kcmaccess.cpp)
+ add_library(kaccess_settings STATIC)
+ set_property(TARGET kaccess_settings PROPERTY POSITION_INDEPENDENT_CODE ON)
+ 
+-target_link_libraries(kaccess_settings PUBLIC Qt::Core KF6::ConfigGui)
++target_link_libraries(kaccess_settings PUBLIC Qt::Core KF6::ConfigGui KF6::WindowSystem)
+ 
+ kconfig_target_kcfg_file(kaccess_settings
+     GENERATE_MOC
+@@ -61,6 +61,7 @@ kconfig_target_kcfg_file(kaccess_settings
+     FILE kcmaccessibilityshakecursor.kcfg
+     HEADER kcmaccessibilityshakecursor.h
+     CLASS_NAME ShakeCursorSettings
++    INHERITS CompositorConfigSkeleton
+     MUTATORS DEFAULT_VALUE_GETTERS GENERATE_PROPERTIES PARENT_IN_CONSTRUCTOR NOTIFIERS
+ )
+ 
+@@ -69,6 +70,7 @@ kconfig_target_kcfg_file(kaccess_settings
+     FILE kcmaccessibilitycolorblindnesscorrection.kcfg
+     HEADER kcmaccessibilitycolorblindnesscorrection.h
+     CLASS_NAME ColorblindnessCorrectionSettings
++    INHERITS CompositorConfigSkeleton
+     MUTATORS DEFAULT_VALUE_GETTERS GENERATE_PROPERTIES PARENT_IN_CONSTRUCTOR NOTIFIERS
+ )
+ 
+@@ -77,6 +79,7 @@ kconfig_target_kcfg_file(kaccess_settings
+     FILE kcmaccessibilityinvert.kcfg
+     HEADER kcmaccessibilityinvert.h
+     CLASS_NAME InvertSettings
++    INHERITS CompositorConfigSkeleton
+     MUTATORS DEFAULT_VALUE_GETTERS GENERATE_PROPERTIES PARENT_IN_CONSTRUCTOR NOTIFIERS
+ )
+ 
+@@ -85,6 +88,7 @@ kconfig_target_kcfg_file(kaccess_settings
+     FILE kcmaccessibilityzoommagnifier.kcfg
+     HEADER kcmaccessibilityzoommagnifier.h
+     CLASS_NAME ZoomMagnifierSettings
++    INHERITS CompositorConfigSkeleton
+     MUTATORS DEFAULT_VALUE_GETTERS GENERATE_PROPERTIES PARENT_IN_CONSTRUCTOR NOTIFIERS
+ )
+ 
+diff --git a/kcms/access/kcmaccess.cpp b/kcms/access/kcmaccess.cpp
+index ce2e7e1..b341bfb 100644
+--- a/kcms/access/kcmaccess.cpp
++++ b/kcms/access/kcmaccess.cpp
+@@ -123,8 +123,8 @@ void KAccessConfig::configureInvertShortcuts()
+ {
+     KShortcutsDialog *dialog = new KShortcutsDialog(KShortcutsEditor::GlobalAction, KShortcutsEditor::LetterShortcutsDisallowed);
+ 
+-    KActionCollection *actionCollection = new KActionCollection(dialog, QStringLiteral("kwin"));
+-    actionCollection->setComponentDisplayName(i18n("KWin"));
++    KActionCollection *actionCollection = new KActionCollection(dialog, (KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin")));
++    actionCollection->setComponentDisplayName((KWindowSystem::isPlatformX11() ? i18n("KWin") : i18n("NWin")));
+ 
+     QAction *a = actionCollection->addAction(QStringLiteral("Invert"));
+     a->setText(i18n("Toggle Invert Effect"));
+@@ -151,8 +151,8 @@ void KAccessConfig::configureZoomMagnifyShortcuts()
+ {
+     KShortcutsDialog *dialog = new KShortcutsDialog(KShortcutsEditor::GlobalAction, KShortcutsEditor::LetterShortcutsDisallowed);
+ 
+-    KActionCollection *actionCollection = new KActionCollection(dialog, QStringLiteral("kwin"));
+-    actionCollection->setComponentDisplayName(i18n("KWin"));
++    KActionCollection *actionCollection = new KActionCollection(dialog, (KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin")));
++    actionCollection->setComponentDisplayName((KWindowSystem::isPlatformX11() ? i18n("KWin") : i18n("NWin")));
+ 
+     if (zoomMagnifierSettings()->zoom()) {
+         // Show zoom effect shortcuts
+@@ -306,17 +306,17 @@ void KAccessConfig::save()
+ 
+     if (shakeCursorSaveNeeded) {
+         QDBusMessage reloadMessage =
+-            QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++            QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                            QStringLiteral("/Effects"),
+-                                           QStringLiteral("org.kde.kwin.Effects"),
++                                           (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                            shakeCursorSettings()->shakeCursor() ? QStringLiteral("loadEffect") : QStringLiteral("unloadEffect"));
+         reloadMessage.setArguments({QStringLiteral("shakecursor")});
+         QDBusConnection::sessionBus().call(reloadMessage);
+     }
+     if (shakeCursorMagnificationSaveNeeded) {
+-        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                          QStringLiteral("/Effects"),
+-                                                                         QStringLiteral("org.kde.kwin.Effects"),
++                                                                         (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                          QStringLiteral("reconfigureEffect"));
+         reconfigureMessage.setArguments({QStringLiteral("shakecursor")});
+         QDBusConnection::sessionBus().call(reconfigureMessage);
+@@ -324,27 +324,27 @@ void KAccessConfig::save()
+ 
+     if (colorblindnessCorrectionSaveNeeded) {
+         QDBusMessage reloadMessage = QDBusMessage::createMethodCall(
+-            QStringLiteral("org.kde.KWin"),
++            (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+             QStringLiteral("/Effects"),
+-            QStringLiteral("org.kde.kwin.Effects"),
++            (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+             colorblindnessCorrectionSettings()->colorblindnessCorrection() ? QStringLiteral("loadEffect") : QStringLiteral("unloadEffect"));
+         reloadMessage.setArguments({QStringLiteral("colorblindnesscorrection")});
+         QDBusConnection::sessionBus().call(reloadMessage);
+     }
+ 
+     if (colorblindnessCorrectionSaveNeeded || colorblindnessCorrectionSettingsSaveNeeded) {
+-        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                          QStringLiteral("/Effects"),
+-                                                                         QStringLiteral("org.kde.kwin.Effects"),
++                                                                         (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                          QStringLiteral("reconfigureEffect"));
+         reconfigureMessage.setArguments({QStringLiteral("colorblindnesscorrection")});
+         QDBusConnection::sessionBus().call(reconfigureMessage);
+     }
+ 
+     if (invertSaveNeeded) {
+-        QDBusMessage reloadMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reloadMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                     QStringLiteral("/Effects"),
+-                                                                    QStringLiteral("org.kde.kwin.Effects"),
++                                                                    (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                     invertSettings()->invert() ? QStringLiteral("loadEffect") : QStringLiteral("unloadEffect"));
+         reloadMessage.setArguments({QStringLiteral("invert")});
+         QDBusConnection::sessionBus().call(reloadMessage);
+@@ -352,9 +352,9 @@ void KAccessConfig::save()
+ 
+     if (zoomMagnifierSaveNeeded) {
+         // Unload both effects
+-        QDBusMessage reloadMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reloadMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                     QStringLiteral("/Effects"),
+-                                                                    QStringLiteral("org.kde.kwin.Effects"),
++                                                                    (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                     QStringLiteral("unloadEffect"));
+         reloadMessage.setArguments({QStringLiteral("zoom")});
+         QDBusConnection::sessionBus().call(reloadMessage);
+@@ -363,9 +363,9 @@ void KAccessConfig::save()
+ 
+         if (zoomMagnifierSettings()->zoom() || zoomMagnifierSettings()->magnifier()) {
+             // Load the specified effect
+-            QDBusMessage reloadMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++            QDBusMessage reloadMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                         QStringLiteral("/Effects"),
+-                                                                        QStringLiteral("org.kde.kwin.Effects"),
++                                                                        (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                         QStringLiteral("loadEffect"));
+             reloadMessage.setArguments({zoomMagnifierSettings()->zoom() ? QStringLiteral("zoom") : QStringLiteral("magnifier")});
+             QDBusConnection::sessionBus().call(reloadMessage);
+@@ -373,18 +373,18 @@ void KAccessConfig::save()
+     }
+ 
+     if (zoomSettingsSaveNeeded) {
+-        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                          QStringLiteral("/Effects"),
+-                                                                         QStringLiteral("org.kde.kwin.Effects"),
++                                                                         (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                          QStringLiteral("reconfigureEffect"));
+         reconfigureMessage.setArguments({QStringLiteral("zoom")});
+         QDBusConnection::sessionBus().call(reconfigureMessage);
+     }
+ 
+     if (magnifierSettingsSaveNeeded) {
+-        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        QDBusMessage reconfigureMessage = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                                          QStringLiteral("/Effects"),
+-                                                                         QStringLiteral("org.kde.kwin.Effects"),
++                                                                         (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.kwin.Effects") : QStringLiteral("org.kde.NWin.Effects")),
+                                                                          QStringLiteral("reconfigureEffect"));
+         reconfigureMessage.setArguments({QStringLiteral("magnifier")});
+         QDBusConnection::sessionBus().call(reconfigureMessage);
+diff --git a/kcms/access/kcmaccessibilitycolorblindnesscorrection.kcfg b/kcms/access/kcmaccessibilitycolorblindnesscorrection.kcfg
+index c909252..a6c6056 100644
+--- a/kcms/access/kcmaccessibilitycolorblindnesscorrection.kcfg
++++ b/kcms/access/kcmaccessibilitycolorblindnesscorrection.kcfg
+@@ -7,7 +7,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc" />
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc" />
+   <group name="Plugins">
+     <entry name="ColorblindnessCorrection" key="colorblindnesscorrectionEnabled" type="Bool">
+       <label>Whether Colorblindness Correction is enabled</label>
+diff --git a/kcms/access/kcmaccessibilityinvert.kcfg b/kcms/access/kcmaccessibilityinvert.kcfg
+index ae19170..e491ccd 100644
+--- a/kcms/access/kcmaccessibilityinvert.kcfg
++++ b/kcms/access/kcmaccessibilityinvert.kcfg
+@@ -3,7 +3,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc"/>
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc"/>
+   <group name="Plugins">
+     <entry name="Invert" key="invertEnabled" type="Bool">
+       <label>Whether the Invert effect is enabled</label>
+diff --git a/kcms/access/kcmaccessibilityshakecursor.kcfg b/kcms/access/kcmaccessibilityshakecursor.kcfg
+index 61185ab..e61b9d1 100644
+--- a/kcms/access/kcmaccessibilityshakecursor.kcfg
++++ b/kcms/access/kcmaccessibilityshakecursor.kcfg
+@@ -3,7 +3,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc" />
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc" />
+   <group name="Plugins">
+     <entry name="ShakeCursor" key="shakecursorEnabled" type="Bool">
+       <label>Whether Shake Pointer is enabled</label>
+diff --git a/kcms/access/kcmaccessibilityzoommagnifier.kcfg b/kcms/access/kcmaccessibilityzoommagnifier.kcfg
+index 7865964..19531ee 100644
+--- a/kcms/access/kcmaccessibilityzoommagnifier.kcfg
++++ b/kcms/access/kcmaccessibilityzoommagnifier.kcfg
+@@ -3,7 +3,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc"/>
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc"/>
+   <group name="Plugins">
+     <entry name="Zoom" key="zoomEnabled" type="Bool">
+       <label>Whether the Zoom effect is enabled</label>
+diff --git a/kcms/compositorconfig.h b/kcms/compositorconfig.h
+new file mode 100644
+index 0000000..5d3986d
+--- /dev/null
++++ b/kcms/compositorconfig.h
+@@ -0,0 +1,18 @@
++/*
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++
++#pragma once
++
++#include <KConfigSkeleton>
++#include <KWindowSystem>
++
++// Generated default-value getters must not change their skeleton's configuration.
++class CompositorConfigSkeleton : public KConfigSkeleton
++{
++public:
++    explicit CompositorConfigSkeleton(const QString &nativeConfigFile)
++        : KConfigSkeleton(KWindowSystem::isPlatformX11() ? QStringLiteral("kwinrc") : nativeConfigFile)
++    {
++    }
++};
+diff --git a/kcms/gamecontroller/CMakeLists.txt b/kcms/gamecontroller/CMakeLists.txt
+index ce5bcd5..6d58843 100644
+--- a/kcms/gamecontroller/CMakeLists.txt
++++ b/kcms/gamecontroller/CMakeLists.txt
+@@ -38,6 +38,7 @@ target_sources(kcm_gamecontroller PRIVATE
+ kconfig_target_kcfg_file(kcm_gamecontroller
+     FILE gamecontrolleremulationsettings.kcfg
+     CLASS_NAME GameControllerEmulationSettings
++    INHERITS CompositorConfigSkeleton
+     MUTATORS
+ )
+ 
+@@ -46,6 +47,7 @@ target_link_libraries(kcm_gamecontroller PRIVATE
+     KF6::KCMUtils
+     KF6::KCMUtilsQuick
+     KF6::I18n
++    KF6::WindowSystem
+     Qt6::Quick
+     Qt6::QuickWidgets
+     SDL2::SDL2
+diff --git a/kcms/gamecontroller/gamecontrolleremulationsettings.kcfg b/kcms/gamecontroller/gamecontrolleremulationsettings.kcfg
+index 0413686..0e54f4c 100644
+--- a/kcms/gamecontroller/gamecontrolleremulationsettings.kcfg
++++ b/kcms/gamecontroller/gamecontrolleremulationsettings.kcfg
+@@ -3,7 +3,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc"/>
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc"/>
+   <group name="Plugins">
+     <entry name="gamecontrollerEnabled" type="Bool">
+       <default>false</default>
+diff --git a/kcms/gamecontroller/kcm.cpp b/kcms/gamecontroller/kcm.cpp
+index c0b9f82..540de5c 100644
+--- a/kcms/gamecontroller/kcm.cpp
++++ b/kcms/gamecontroller/kcm.cpp
+@@ -12,6 +12,7 @@
+ 
+ #include <KConfigGroup>
+ #include <KPluginFactory>
++#include <KWindowSystem>
+ #include <KSharedConfig>
+ #include <QDBusConnection>
+ #include <QDBusMessage>
+@@ -28,7 +29,7 @@
+ 
+ K_PLUGIN_FACTORY_WITH_JSON(KCMGameControllerFactory, "kcm_gamecontroller.json", registerPlugin<KCMGameController>(); registerPlugin<GameControllerModuleData>();)
+ 
+-static const QString s_kwinPluginId = QStringLiteral("gamecontroller");
++static const QString s_nwinPluginId = QStringLiteral("gamecontroller");
+ 
+ KCMGameController::KCMGameController(QObject *parent, const KPluginMetaData &metaData)
+     : KQuickConfigModule(parent, metaData)
+@@ -62,17 +63,17 @@ void KCMGameController::setPluginEnabled(bool enabled)
+ 
+     QDBusMessage message;
+     if (enabled) {
+-        message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        message = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                  QStringLiteral("/Plugins"),
+-                                                 QStringLiteral("org.kde.KWin.Plugins"),
++                                                 (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin.Plugins") : QStringLiteral("org.kde.NWin.Plugins")),
+                                                  QStringLiteral("LoadPlugin"));
+-        message << s_kwinPluginId;
++        message << s_nwinPluginId;
+     } else {
+-        message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
++        message = QDBusMessage::createMethodCall((KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin")),
+                                                  QStringLiteral("/Plugins"),
+-                                                 QStringLiteral("org.kde.KWin.Plugins"),
++                                                 (KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin.Plugins") : QStringLiteral("org.kde.NWin.Plugins")),
+                                                  QStringLiteral("UnloadPlugin"));
+-        message << s_kwinPluginId;
++        message << s_nwinPluginId;
+     }
+     QDBusConnection::sessionBus().asyncCall(message);
+     Q_EMIT pluginEnabledChanged();
+diff --git a/kcms/keys/basemodel.cpp b/kcms/keys/basemodel.cpp
+index c277831..7a5c578 100644
+--- a/kcms/keys/basemodel.cpp
++++ b/kcms/keys/basemodel.cpp
+@@ -185,9 +185,9 @@ QVariant BaseModel::data(const QModelIndex &index, int role) const
+             return cg.readEntry("Name");
+         }
+ 
+-        // Override the names for Plasma and KWin here because their KAboutData strings are
++        // Override the names for Plasma and NWin here because their KAboutData strings are
+         // rather technical, but aren't strictly speaking wrong, so they won't be changed there.
+-        if (component.id == QLatin1String("kwin")) {
++        if (component.id == QLatin1String("nwin") || component.id == QLatin1String("kwin")) {
+             return i18nc("@item:intable", "Window Management");
+         }
+         if (component.id == QLatin1String("plasmashell")) {
+diff --git a/kcms/keys/schemes/kde3.kksrc b/kcms/keys/schemes/kde3.kksrc
+index 336757d..d5da1d5 100644
+--- a/kcms/keys/schemes/kde3.kksrc
++++ b/kcms/keys/schemes/kde3.kksrc
+@@ -162,5 +162,69 @@ Window to Desktop 9=none
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Ctrl+Print
++Kill Window=Ctrl+Alt+Esc
++Mouse Emulation=Alt+F12
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Ctrl+F10
++Switch to Desktop 11=Ctrl+F11
++Switch to Desktop 12=Ctrl+F12
++Switch to Desktop 13=Ctrl+Shift+F1
++Switch to Desktop 14=Ctrl+Shift+F2
++Switch to Desktop 15=Ctrl+Shift+F3
++Switch to Desktop 16=Ctrl+Shift+F4
++Switch to Desktop 1=Ctrl+F1
++Switch to Desktop 2=Ctrl+F2
++Switch to Desktop 3=Ctrl+F3
++Switch to Desktop 4=Ctrl+F4
++Switch to Desktop 5=Ctrl+F5
++Switch to Desktop 6=Ctrl+F6
++Switch to Desktop 7=Ctrl+F7
++Switch to Desktop 8=Ctrl+F8
++Switch to Desktop 9=Ctrl+F9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=Ctrl+Shift+Tab
++Walk Through Desktop List=Ctrl+Tab
++Walk Through Desktops (Reverse)=none
++Walk Through Desktops=none
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+Tab
++Window Close=Alt+F4
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=none
++Window Minimize=none
++Window Move=none
++Window Operations Menu=Alt+F3
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Alt+Print
++Window Shade=none
++Window to Desktop 10=none
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=none
++Window to Desktop 2=none
++Window to Desktop 3=none
++Window to Desktop 4=none
++Window to Desktop 5=none
++Window to Desktop 6=none
++Window to Desktop 7=none
++Window to Desktop 8=none
++Window to Desktop 9=none
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/keys/schemes/kde4.kksrc b/kcms/keys/schemes/kde4.kksrc
+index 2ea1432..176a3e6 100644
+--- a/kcms/keys/schemes/kde4.kksrc
++++ b/kcms/keys/schemes/kde4.kksrc
+@@ -162,5 +162,69 @@ Window to Desktop 9=Meta+Alt+F9
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Meta+Print
++Kill Window=Meta+Ctrl+Del
++Mouse Emulation=none
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Meta+F10
++Switch to Desktop 11=none
++Switch to Desktop 12=none
++Switch to Desktop 13=none
++Switch to Desktop 14=none
++Switch to Desktop 15=none
++Switch to Desktop 16=none
++Switch to Desktop 1=Meta+F1
++Switch to Desktop 2=Meta+F2
++Switch to Desktop 3=Meta+F3
++Switch to Desktop 4=Meta+F4
++Switch to Desktop 5=Meta+F5
++Switch to Desktop 6=Meta+F6
++Switch to Desktop 7=Meta+F7
++Switch to Desktop 8=Meta+F8
++Switch to Desktop 9=Meta+F9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=none
++Walk Through Desktop List=none
++Walk Through Desktops (Reverse)=Meta+Shift+Tab
++Walk Through Desktops=Meta+Tab
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+Tab
++Window Close=Alt+Esc; Alt+F4
++Window Lower=none
++Window Maximize Horizontal=Meta+=
++Window Maximize Vertical=Meta+|
++Window Maximize=Meta++
++Window Minimize=Meta+-
++Window Move=none
++Window Operations Menu=Alt+Menu
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Alt+Print
++Window Shade=Meta+_
++Window to Desktop 10=Meta+Alt+F10
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=Meta+Alt+F1
++Window to Desktop 2=Meta+Alt+F2
++Window to Desktop 3=Meta+Alt+F3
++Window to Desktop 4=Meta+Alt+F4
++Window to Desktop 5=Meta+Alt+F5
++Window to Desktop 6=Meta+Alt+F6
++Window to Desktop 7=Meta+Alt+F7
++Window to Desktop 8=Meta+Alt+F8
++Window to Desktop 9=Meta+Alt+F9
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Meta+Ctrl+K
+diff --git a/kcms/keys/schemes/mac4.kksrc b/kcms/keys/schemes/mac4.kksrc
+index 0ecde00..e72df1d 100644
+--- a/kcms/keys/schemes/mac4.kksrc
++++ b/kcms/keys/schemes/mac4.kksrc
+@@ -167,5 +167,69 @@ Window to Desktop 9=none
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Ctrl+Shift+3
++Kill Window=Ctrl+Alt+Esc
++Mouse Emulation=none
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Ctrl+F10
++Switch to Desktop 11=Ctrl+F11
++Switch to Desktop 12=Ctrl+F12
++Switch to Desktop 13=Ctrl+Shift+F1
++Switch to Desktop 14=Ctrl+Shift+F2
++Switch to Desktop 15=Ctrl+Shift+F3
++Switch to Desktop 16=Ctrl+Shift+F4
++Switch to Desktop 1=Ctrl+F1
++Switch to Desktop 2=Ctrl+F2
++Switch to Desktop 3=Ctrl+F3
++Switch to Desktop 4=Ctrl+F4
++Switch to Desktop 5=Ctrl+F5
++Switch to Desktop 6=Ctrl+F6
++Switch to Desktop 7=Ctrl+F7
++Switch to Desktop 8=Ctrl+F8
++Switch to Desktop 9=Ctrl+F9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=Ctrl+E
++Walk Through Desktop List (Reverse)=none
++Walk Through Desktop List=none
++Walk Through Desktops (Reverse)=Alt+Shift+Tab
++Walk Through Desktops=Alt+Tab
++Walk Through Windows (Reverse)=Ctrl+Shift+Tab
++Walk Through Windows=Ctrl+Tab
++Window Close=Alt+F4
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=none
++Window Minimize=none
++Window Move=none
++Window Operations Menu=Alt+F3
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Ctrl+Shift+4
++Window Shade=none
++Window to Desktop 10=none
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=none
++Window to Desktop 2=none
++Window to Desktop 3=none
++Window to Desktop 4=none
++Window to Desktop 5=none
++Window to Desktop 6=none
++Window to Desktop 7=none
++Window to Desktop 8=none
++Window to Desktop 9=none
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/keys/schemes/unix3.kksrc b/kcms/keys/schemes/unix3.kksrc
+index 1845cde..a701260 100644
+--- a/kcms/keys/schemes/unix3.kksrc
++++ b/kcms/keys/schemes/unix3.kksrc
+@@ -167,5 +167,69 @@ Window to Desktop 9=none
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=none
++Kill Window=Alt+F9
++Mouse Emulation=Alt+F12
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Ctrl+F10
++Switch to Desktop 11=Ctrl+F11
++Switch to Desktop 12=Ctrl+F12
++Switch to Desktop 13=Ctrl+Shift+F1
++Switch to Desktop 14=Ctrl+Shift+F2
++Switch to Desktop 15=Ctrl+Shift+F3
++Switch to Desktop 16=Ctrl+Shift+F4
++Switch to Desktop 1=Ctrl+F1
++Switch to Desktop 2=Ctrl+F2
++Switch to Desktop 3=Ctrl+F3
++Switch to Desktop 4=Ctrl+F4
++Switch to Desktop 5=Ctrl+F5
++Switch to Desktop 6=Ctrl+F6
++Switch to Desktop 7=Ctrl+F7
++Switch to Desktop 8=Ctrl+F8
++Switch to Desktop 9=Ctrl+F9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=Ctrl+Shift+Tab
++Walk Through Desktop List=none
++Walk Through Desktops (Reverse)=none
++Walk Through Desktops=Ctrl+Tab
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+F11
++Window Close=none
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=Alt+Shift+F3
++Window Minimize=Alt+F4
++Window Move=Alt+F5
++Window Operations Menu=none
++Window Raise=none
++Window Resize=Alt+F6
++Window Screenshot to Clipboard=none
++Window Shade=none
++Window to Desktop 10=none
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=none
++Window to Desktop 2=none
++Window to Desktop 3=none
++Window to Desktop 4=none
++Window to Desktop 5=none
++Window to Desktop 6=none
++Window to Desktop 7=none
++Window to Desktop 8=none
++Window to Desktop 9=none
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/keys/schemes/win3.kksrc b/kcms/keys/schemes/win3.kksrc
+index e1929fb..da794bc 100644
+--- a/kcms/keys/schemes/win3.kksrc
++++ b/kcms/keys/schemes/win3.kksrc
+@@ -166,5 +166,69 @@ Window to Desktop 9=none
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Ctrl+Print
++Kill Window=none
++Mouse Emulation=none
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=none
++Switch to Desktop 11=none
++Switch to Desktop 12=none
++Switch to Desktop 13=none
++Switch to Desktop 14=none
++Switch to Desktop 15=none
++Switch to Desktop 16=none
++Switch to Desktop 1=none
++Switch to Desktop 2=none
++Switch to Desktop 3=none
++Switch to Desktop 4=none
++Switch to Desktop 5=none
++Switch to Desktop 6=none
++Switch to Desktop 7=none
++Switch to Desktop 8=none
++Switch to Desktop 9=none
++Switch to Next Desktop=Alt+Shift+Tab
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=none
++Walk Through Desktop List=none
++Walk Through Desktops (Reverse)=Ctrl+Alt+Shift+Tab
++Walk Through Desktops=Ctrl+Alt+Tab
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+Tab
++Window Close=Alt+F4
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=none
++Window Minimize=none
++Window Move=none
++Window Operations Menu=Alt+Space
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Alt+Print
++Window Shade=none
++Window to Desktop 10=none
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=none
++Window to Desktop 2=none
++Window to Desktop 3=none
++Window to Desktop 4=none
++Window to Desktop 5=none
++Window to Desktop 6=none
++Window to Desktop 7=none
++Window to Desktop 8=none
++Window to Desktop 9=none
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/keys/schemes/win4.kksrc b/kcms/keys/schemes/win4.kksrc
+index b28e849..e57dc12 100644
+--- a/kcms/keys/schemes/win4.kksrc
++++ b/kcms/keys/schemes/win4.kksrc
+@@ -166,5 +166,69 @@ Window to Desktop 9=none
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Print
++Kill Window=none
++Mouse Emulation=none
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Meta+F10
++Switch to Desktop 11=none
++Switch to Desktop 12=none
++Switch to Desktop 13=none
++Switch to Desktop 14=none
++Switch to Desktop 15=none
++Switch to Desktop 16=none
++Switch to Desktop 1=Meta+F1
++Switch to Desktop 2=Meta+F2
++Switch to Desktop 3=Meta+F3
++Switch to Desktop 4=Meta+F4
++Switch to Desktop 5=Meta+F5
++Switch to Desktop 6=Meta+F6
++Switch to Desktop 7=Meta+F7
++Switch to Desktop 8=Meta+F8
++Switch to Desktop 9=Meta+F9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=none
++Walk Through Desktop List=none
++Walk Through Desktops (Reverse)=Meta+Shift+Tab
++Walk Through Desktops=Meta+Tab
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+Tab
++Window Close=Alt+F4
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=none
++Window Minimize=none
++Window Move=none
++Window Operations Menu=Alt+Space
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Alt+Print
++Window Shade=none
++Window to Desktop 10=none
++Window to Desktop 11=none
++Window to Desktop 12=none
++Window to Desktop 13=none
++Window to Desktop 14=none
++Window to Desktop 15=none
++Window to Desktop 16=none
++Window to Desktop 1=none
++Window to Desktop 2=none
++Window to Desktop 3=none
++Window to Desktop 4=none
++Window to Desktop 5=none
++Window to Desktop 6=none
++Window to Desktop 7=none
++Window to Desktop 8=none
++Window to Desktop 9=none
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/keys/schemes/wm3.kksrc b/kcms/keys/schemes/wm3.kksrc
+index e57093f..318399c 100644
+--- a/kcms/keys/schemes/wm3.kksrc
++++ b/kcms/keys/schemes/wm3.kksrc
+@@ -161,5 +161,69 @@ Window to Desktop 9=Ctrl+Alt+9
+ Window to Next Desktop=none
+ Window to Previous Desktop=none
+ 
++[nwin][Global Shortcuts]
++Desktop Screenshot to Clipboard=Ctrl+Print
++Kill Window=Ctrl+Alt+Esc
++Mouse Emulation=Alt+F12
++Switch One Desktop Down=none
++Switch One Desktop Up=none
++Switch One Desktop to the Left=none
++Switch One Desktop to the Right=none
++Switch to Desktop 10=Alt+Shift+1
++Switch to Desktop 11=Alt+Shift+2
++Switch to Desktop 12=Alt+Shift+3
++Switch to Desktop 13=Alt+Shift+4
++Switch to Desktop 14=Alt+Shift+5
++Switch to Desktop 15=Alt+Shift+6
++Switch to Desktop 16=Alt+Shift+7
++Switch to Desktop 1=Alt+1
++Switch to Desktop 2=Alt+2
++Switch to Desktop 3=Alt+3
++Switch to Desktop 4=Alt+4
++Switch to Desktop 5=Alt+5
++Switch to Desktop 6=Alt+6
++Switch to Desktop 7=Alt+7
++Switch to Desktop 8=Alt+8
++Switch to Desktop 9=Alt+9
++Switch to Next Desktop=none
++Switch to Previous Desktop=none
++Toggle Window Raise/Lower=none
++Walk Through Desktop List (Reverse)=Ctrl+Shift+Tab
++Walk Through Desktop List=Ctrl+Tab
++Walk Through Desktops (Reverse)=none
++Walk Through Desktops=none
++Walk Through Windows (Reverse)=Alt+Shift+Tab
++Walk Through Windows=Alt+Tab
++Window Close=Alt+Esc
++Window Lower=none
++Window Maximize Horizontal=none
++Window Maximize Vertical=none
++Window Maximize=none
++Window Minimize=none
++Window Move=none
++Window Operations Menu=Alt+F3
++Window Raise=none
++Window Resize=none
++Window Screenshot to Clipboard=Alt+Print
++Window Shade=none
++Window to Desktop 10=Ctrl+Alt+Shift+1
++Window to Desktop 11=Ctrl+Alt+Shift+2
++Window to Desktop 12=Ctrl+Alt+Shift+3
++Window to Desktop 13=Ctrl+Alt+Shift+4
++Window to Desktop 14=Ctrl+Alt+Shift+5
++Window to Desktop 15=Ctrl+Alt+Shift+6
++Window to Desktop 16=Ctrl+Alt+Shift+7
++Window to Desktop 1=Ctrl+Alt+1
++Window to Desktop 2=Ctrl+Alt+2
++Window to Desktop 3=Ctrl+Alt+3
++Window to Desktop 4=Ctrl+Alt+4
++Window to Desktop 5=Ctrl+Alt+5
++Window to Desktop 6=Ctrl+Alt+6
++Window to Desktop 7=Ctrl+Alt+7
++Window to Desktop 8=Ctrl+Alt+8
++Window to Desktop 9=Ctrl+Alt+9
++Window to Next Desktop=none
++Window to Previous Desktop=none
++
+ [kxkb][Global Shortcuts]
+ Switch to Next Keyboard Layout=Ctrl+Alt+K
+diff --git a/kcms/libkwindevices/CMakeLists.txt b/kcms/libkwindevices/CMakeLists.txt
+deleted file mode 100644
+index 7133641..0000000
+--- a/kcms/libkwindevices/CMakeLists.txt
++++ /dev/null
+@@ -1,29 +0,0 @@
+-# SPDX-License-Identifier: BSD-3-Clause
+-# SPDX-FileCopyrightText: 2022 Harald Sitter <sitter@kde.org>
+-
+-ecm_qt_declare_logging_category(kwindevices_SRCS
+-    HEADER
+-        kwindevices-logging.h
+-    IDENTIFIER
+-        LIBKWINDEVICES
+-    CATEGORY_NAME
+-        org.kde.libkwindevices
+-    DESCRIPTION
+-        "Library for kwin devices"
+-    EXPORT
+-        libkwindevices
+-)
+-
+-qt_add_dbus_interface(kwindevices_SRCS "${KWIN_INPUTDEVICE_INTERFACE}" InputDevice_interface)
+-
+-add_library(kwindevices STATIC ${kwindevices_SRCS} devicesmodel.cpp devicesmodel.h inputdevice.cpp inputdevice.h)
+-set_property(TARGET kwindevices PROPERTY POSITION_INDEPENDENT_CODE ON)
+-target_link_libraries(kwindevices
+-    Qt::Core
+-    Qt::DBus
+-    Qt::Gui
+-)
+-
+-if(BUILD_TESTING)
+-    add_subdirectory(tests)
+-endif()
+diff --git a/kcms/libnwindevices/CMakeLists.txt b/kcms/libnwindevices/CMakeLists.txt
+new file mode 100644
+index 0000000..0bd0047
+--- /dev/null
++++ b/kcms/libnwindevices/CMakeLists.txt
+@@ -0,0 +1,29 @@
++# SPDX-License-Identifier: BSD-3-Clause
++# SPDX-FileCopyrightText: 2022 Harald Sitter <sitter@kde.org>
++
++ecm_qt_declare_logging_category(nwindevices_SRCS
++    HEADER
++        nwindevices-logging.h
++    IDENTIFIER
++        LIBNWINDEVICES
++    CATEGORY_NAME
++        org.kde.libnwindevices
++    DESCRIPTION
++        "Library for nwin devices"
++    EXPORT
++        libnwindevices
++)
++
++qt_add_dbus_interface(nwindevices_SRCS "${NWIN_INPUTDEVICE_INTERFACE}" InputDevice_interface)
++
++add_library(nwindevices STATIC ${nwindevices_SRCS} devicesmodel.cpp devicesmodel.h inputdevice.cpp inputdevice.h)
++set_property(TARGET nwindevices PROPERTY POSITION_INDEPENDENT_CODE ON)
++target_link_libraries(nwindevices
++    Qt::Core
++    Qt::DBus
++    Qt::Gui
++)
++
++if(BUILD_TESTING)
++    add_subdirectory(tests)
++endif()
+diff --git a/kcms/libkwindevices/devicesmodel.cpp b/kcms/libnwindevices/devicesmodel.cpp
+similarity index 84%
+rename from kcms/libkwindevices/devicesmodel.cpp
+rename to kcms/libnwindevices/devicesmodel.cpp
+index 3af846f..b58acea 100644
+--- a/kcms/libkwindevices/devicesmodel.cpp
++++ b/kcms/libnwindevices/devicesmodel.cpp
+@@ -17,14 +17,14 @@
+ 
+ #include "InputDevice_interface.h"
+ #include "inputdevice.h"
+-#include "kwindevices-logging.h"
++#include "nwindevices-logging.h"
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ 
+-static constexpr QLatin1String g_kwinService{"org.kde.KWin"};
+-static constexpr QLatin1String g_kwinInputDevicePath{"/org/kde/KWin/InputDevice"};
+-static constexpr QLatin1String g_kwinInputDeviceManagerInterface{"org.kde.KWin.InputDeviceManager"};
++static constexpr QLatin1String g_nwinService{"org.kde.NWin"};
++static constexpr QLatin1String g_nwinInputDevicePath{"/org/kde/NWin/InputDevice"};
++static constexpr QLatin1String g_nwinInputDeviceManagerInterface{"org.kde.NWin.InputDeviceManager"};
+ 
+ using namespace Qt::StringLiterals;
+ 
+@@ -39,9 +39,9 @@ DevicesModel::DevicesModel(DevicesModel::Kind kind, const QVariantMap &filters,
+     , m_filters(filters)
+ {
+     QDBusConnection::sessionBus()
+-        .connect(g_kwinService, g_kwinInputDevicePath, g_kwinInputDeviceManagerInterface, u"deviceAdded"_s, this, SLOT(onDeviceAdded(QString)));
++        .connect(g_nwinService, g_nwinInputDevicePath, g_nwinInputDeviceManagerInterface, u"deviceAdded"_s, this, SLOT(onDeviceAdded(QString)));
+     QDBusConnection::sessionBus()
+-        .connect(g_kwinService, g_kwinInputDevicePath, g_kwinInputDeviceManagerInterface, u"deviceRemoved"_s, this, SLOT(onDeviceRemoved(QString)));
++        .connect(g_nwinService, g_nwinInputDevicePath, g_nwinInputDeviceManagerInterface, u"deviceRemoved"_s, this, SLOT(onDeviceRemoved(QString)));
+ 
+     QString listMethod;
+     switch (kind) {
+@@ -56,10 +56,10 @@ DevicesModel::DevicesModel(DevicesModel::Kind kind, const QVariantMap &filters,
+         break;
+     }
+ 
+-    auto msg = QDBusMessage::createMethodCall(g_kwinService, g_kwinInputDevicePath, g_kwinInputDeviceManagerInterface, listMethod);
++    auto msg = QDBusMessage::createMethodCall(g_nwinService, g_nwinInputDevicePath, g_nwinInputDeviceManagerInterface, listMethod);
+     auto reply = QDBusConnection::sessionBus().call(msg);
+     if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+-        qCWarning(LIBKWINDEVICES) << "Error getting device list from KWin" << reply.errorMessage();
++        qCWarning(LIBNWINDEVICES) << "Error getting device list from NWin" << reply.errorMessage();
+         m_errorString = reply.errorMessage();
+         return;
+     }
+@@ -68,7 +68,7 @@ DevicesModel::DevicesModel(DevicesModel::Kind kind, const QVariantMap &filters,
+     for (const QString &sysName : deviceSysNames) {
+         bool relevantDevice = true;
+         if (!m_filters.isEmpty()) {
+-            org::kde::KWin::InputDevice deviceIface{g_kwinService, g_kwinInputDevicePath + '/'_L1 + sysName, QDBusConnection::sessionBus()};
++            org::kde::NWin::InputDevice deviceIface{g_nwinService, g_nwinInputDevicePath + '/'_L1 + sysName, QDBusConnection::sessionBus()};
+             for (const auto &[key, value] : std::as_const(m_filters).asKeyValueRange()) {
+                 if (deviceIface.property(qUtf8Printable(key)) != value) {
+                     relevantDevice = false;
+@@ -112,7 +112,7 @@ void DevicesModel::onDeviceAdded(const QString &sysName)
+         return;
+     }
+ 
+-    org::kde::KWin::InputDevice deviceIface{g_kwinService, g_kwinInputDevicePath + '/'_L1 + sysName, QDBusConnection::sessionBus()};
++    org::kde::NWin::InputDevice deviceIface{g_nwinService, g_nwinInputDevicePath + '/'_L1 + sysName, QDBusConnection::sessionBus()};
+ 
+     switch (m_kind) {
+     case Kind::Keyboards:
+@@ -147,7 +147,7 @@ void DevicesModel::addDevice(const QString &sysName)
+ {
+     auto dev = std::make_unique<InputDevice>(sysName, this);
+     connect(dev.get(), &InputDevice::needsSaveChanged, this, &DevicesModel::needsSaveChanged);
+-    qCDebug(LIBKWINDEVICES).nospace() << "Device connected:" << dev->name() << " (" << dev->sysName() << ")";
++    qCDebug(LIBNWINDEVICES).nospace() << "Device connected:" << dev->name() << " (" << dev->sysName() << ")";
+     m_devices.push_back(std::move(dev));
+     m_deviceSysNames.append(sysName);
+ }
+@@ -159,7 +159,7 @@ void DevicesModel::onDeviceRemoved(const QString &sysName)
+         return;
+     }
+ 
+-    qCDebug(LIBKWINDEVICES) << "Device disconnected:" << sysName;
++    qCDebug(LIBNWINDEVICES) << "Device disconnected:" << sysName;
+ 
+     beginRemoveRows({}, index, index);
+     m_devices.erase(m_devices.begin() + index);
+@@ -227,6 +227,6 @@ QString DevicesModel::errorString() const
+     return m_errorString;
+ }
+ 
+-} // namespace KWinDevices
++} // namespace NWinDevices
+ 
+ #include "moc_devicesmodel.cpp"
+diff --git a/kcms/libkwindevices/devicesmodel.h b/kcms/libnwindevices/devicesmodel.h
+similarity index 92%
+rename from kcms/libkwindevices/devicesmodel.h
+rename to kcms/libnwindevices/devicesmodel.h
+index 88a0591..1bafc75 100644
+--- a/kcms/libkwindevices/devicesmodel.h
++++ b/kcms/libnwindevices/devicesmodel.h
+@@ -12,7 +12,7 @@
+ 
+ #include <vector>
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ class InputDevice;
+ 
+@@ -62,11 +62,11 @@ private:
+ 
+     const Kind m_kind;
+     QVariantMap m_filters;
+-    std::vector<std::unique_ptr<KWinDevices::InputDevice>> m_devices;
++    std::vector<std::unique_ptr<NWinDevices::InputDevice>> m_devices;
+     // So it doesn't have to look them up on the device via DBus.
+     QStringList m_deviceSysNames;
+ 
+     QString m_errorString;
+ };
+ 
+-} // namespace KWinDevices
++} // namespace NWinDevices
+diff --git a/kcms/libkwindevices/inputdevice.cpp b/kcms/libnwindevices/inputdevice.cpp
+similarity index 95%
+rename from kcms/libkwindevices/inputdevice.cpp
+rename to kcms/libnwindevices/inputdevice.cpp
+index 76ed376..4dff611 100644
+--- a/kcms/libkwindevices/inputdevice.cpp
++++ b/kcms/libnwindevices/inputdevice.cpp
+@@ -8,14 +8,14 @@
+ 
+ #include <QList>
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ 
+ InputDevice::InputDevice(const QString &dbusName, QObject *parent)
+     : QObject(parent)
+ {
+-    m_iface = std::make_unique<OrgKdeKWinInputDeviceInterface>(QStringLiteral("org.kde.KWin"),
+-                                                               QStringLiteral("/org/kde/KWin/InputDevice/") + dbusName,
++    m_iface = std::make_unique<OrgKdeNWinInputDeviceInterface>(QStringLiteral("org.kde.NWin"),
++                                                               QStringLiteral("/org/kde/NWin/InputDevice/") + dbusName,
+                                                                QDBusConnection::sessionBus(),
+                                                                this);
+     connect(this, &InputDevice::leftHandedChanged, this, &InputDevice::needsSaveChanged);
+@@ -29,7 +29,7 @@ InputDevice::InputDevice(const QString &dbusName, QObject *parent)
+     connect(this, &InputDevice::pressureRangeMinChanged, this, &InputDevice::needsSaveChanged);
+     connect(this, &InputDevice::pressureRangeMaxChanged, this, &InputDevice::needsSaveChanged);
+     connect(this, &InputDevice::relativeChanged, this, &InputDevice::needsSaveChanged);
+-    connect(m_iface.get(), &OrgKdeKWinInputDeviceInterface::currentModesChanged, this, &InputDevice::currentModesChanged);
++    connect(m_iface.get(), &OrgKdeNWinInputDeviceInterface::currentModesChanged, this, &InputDevice::currentModesChanged);
+ }
+ 
+ void InputDevice::save()
+@@ -171,6 +171,6 @@ void InputDevice::setRelative(bool relative)
+     m_relative.set(relative);
+ }
+ 
+-} // namespace KWinDevices
++} // namespace NWinDevices
+ 
+ #include "moc_inputdevice.cpp"
+diff --git a/kcms/libkwindevices/inputdevice.h b/kcms/libnwindevices/inputdevice.h
+similarity index 88%
+rename from kcms/libkwindevices/inputdevice.h
+rename to kcms/libnwindevices/inputdevice.h
+index 1e560e0..a548bbe 100644
+--- a/kcms/libkwindevices/inputdevice.h
++++ b/kcms/libnwindevices/inputdevice.h
+@@ -15,11 +15,11 @@
+ 
+ #include <optional>
+ 
+-#include "kwindevices-logging.h"
++#include "nwindevices-logging.h"
+ 
+ class InputDeviceTest;
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ 
+ class InputDevice : public QObject
+@@ -272,9 +272,9 @@ protected:
+ private:
+     template<typename T>
+     struct Prop {
+-        typedef T (OrgKdeKWinInputDeviceInterface::*ValueFunction)() const;
+-        typedef bool (OrgKdeKWinInputDeviceInterface::*SupportedFunction)() const;
+-        typedef bool (OrgKdeKWinInputDeviceInterface::*SetterFunction)(const T &value);
++        typedef T (OrgKdeNWinInputDeviceInterface::*ValueFunction)() const;
++        typedef bool (OrgKdeNWinInputDeviceInterface::*SupportedFunction)() const;
++        typedef bool (OrgKdeNWinInputDeviceInterface::*SetterFunction)(const T &value);
+         typedef void (InputDevice::*ChangedSignal)();
+ 
+         explicit Prop(InputDevice *device, const char *propName, ValueFunction defaultValueFunction, SupportedFunction supported, ChangedSignal changedSignal)
+@@ -283,12 +283,12 @@ private:
+             , m_changedSignalFunction(changedSignal)
+             , m_device(device)
+         {
+-            int idx = OrgKdeKWinInputDeviceInterface::staticMetaObject.indexOfProperty(propName);
++            int idx = OrgKdeNWinInputDeviceInterface::staticMetaObject.indexOfProperty(propName);
+             if (idx < 0) {
+-                qCDebug(LIBKWINDEVICES) << "there is no" << propName;
++                qCDebug(LIBNWINDEVICES) << "there is no" << propName;
+             }
+             Q_ASSERT(idx >= 0);
+-            m_prop = OrgKdeKWinInputDeviceInterface::staticMetaObject.property(idx);
++            m_prop = OrgKdeNWinInputDeviceInterface::staticMetaObject.property(idx);
+         }
+ 
+         explicit Prop(InputDevice *device, const char *propName)
+@@ -298,9 +298,9 @@ private:
+             , m_device(device)
+         {
+             Q_ASSERT(m_device);
+-            int idx = OrgKdeKWinInputDeviceInterface::staticMetaObject.indexOfProperty(propName);
++            int idx = OrgKdeNWinInputDeviceInterface::staticMetaObject.indexOfProperty(propName);
+             Q_ASSERT(idx >= 0);
+-            m_prop = OrgKdeKWinInputDeviceInterface::staticMetaObject.property(idx);
++            m_prop = OrgKdeNWinInputDeviceInterface::staticMetaObject.property(idx);
+         }
+ 
+         T value() const
+@@ -365,7 +365,7 @@ private:
+ 
+         bool save() {
+             if (!isSupported() || !m_value || m_prop.isConstant()) {
+-                qCDebug(LIBKWINDEVICES) << "skipping" << this << m_value.has_value() << isSupported() << m_prop.name();
++                qCDebug(LIBNWINDEVICES) << "skipping" << this << m_value.has_value() << isSupported() << m_prop.name();
+                 return false;
+             }
+ 
+@@ -400,37 +400,37 @@ private:
+ 
+     Prop<bool> m_leftHanded = Prop<bool>(this,
+                                          "leftHanded",
+-                                         &OrgKdeKWinInputDeviceInterface::leftHandedEnabledByDefault,
+-                                         &OrgKdeKWinInputDeviceInterface::supportsLeftHanded,
++                                         &OrgKdeNWinInputDeviceInterface::leftHandedEnabledByDefault,
++                                         &OrgKdeNWinInputDeviceInterface::supportsLeftHanded,
+                                          &InputDevice::leftHandedChanged);
+     Prop<int> m_orientation =
+-        Prop<int>(this, "orientationDBus", nullptr, &OrgKdeKWinInputDeviceInterface::supportsCalibrationMatrix, &InputDevice::orientationChanged);
+-    Prop<bool> m_enabled = Prop<bool>(this, "enabled", &OrgKdeKWinInputDeviceInterface::enabledByDefault, nullptr, &InputDevice::enabledChanged);
++        Prop<int>(this, "orientationDBus", nullptr, &OrgKdeNWinInputDeviceInterface::supportsCalibrationMatrix, &InputDevice::orientationChanged);
++    Prop<bool> m_enabled = Prop<bool>(this, "enabled", &OrgKdeNWinInputDeviceInterface::enabledByDefault, nullptr, &InputDevice::enabledChanged);
+ 
+     Prop<QString> m_outputName = Prop<QString>(this, "outputName", nullptr, nullptr, &InputDevice::outputNameChanged);
+     Prop<QRectF> m_outputArea = Prop<QRectF>(this,
+                                              "outputArea",
+-                                             &OrgKdeKWinInputDeviceInterface::defaultOutputArea,
+-                                             &OrgKdeKWinInputDeviceInterface::supportsOutputArea,
++                                             &OrgKdeNWinInputDeviceInterface::defaultOutputArea,
++                                             &OrgKdeNWinInputDeviceInterface::supportsOutputArea,
+                                              &InputDevice::outputAreaChanged);
+     Prop<QRectF> m_inputArea = Prop<QRectF>(this,
+                                             "inputArea",
+-                                            &OrgKdeKWinInputDeviceInterface::defaultInputArea,
+-                                            &OrgKdeKWinInputDeviceInterface::supportsInputArea,
++                                            &OrgKdeNWinInputDeviceInterface::defaultInputArea,
++                                            &OrgKdeNWinInputDeviceInterface::supportsInputArea,
+                                             &InputDevice::inputAreaChanged);
+     Prop<bool> m_relative = Prop<bool>(this, "tabletToolIsRelative", nullptr, nullptr, &InputDevice::relativeChanged);
+ 
+     Prop<bool> m_mapToWorkspace =
+-        Prop<bool>(this, "mapToWorkspace", &OrgKdeKWinInputDeviceInterface::defaultMapToWorkspace, nullptr, &InputDevice::mapToWorkspaceChanged);
++        Prop<bool>(this, "mapToWorkspace", &OrgKdeNWinInputDeviceInterface::defaultMapToWorkspace, nullptr, &InputDevice::mapToWorkspaceChanged);
+ 
+     Prop<QString> m_calibrationMatrix = Prop<QString>(this,
+                                                       "calibrationMatrix",
+-                                                      &OrgKdeKWinInputDeviceInterface::defaultCalibrationMatrix,
+-                                                      &OrgKdeKWinInputDeviceInterface::supportsCalibrationMatrix,
++                                                      &OrgKdeNWinInputDeviceInterface::defaultCalibrationMatrix,
++                                                      &OrgKdeNWinInputDeviceInterface::supportsCalibrationMatrix,
+                                                       &InputDevice::calibrationMatrixChanged);
+ 
+     Prop<QString> m_pressureCurve =
+-        Prop<QString>(this, "pressureCurve", &OrgKdeKWinInputDeviceInterface::defaultPressureCurve, nullptr, &InputDevice::pressureCurveChanged);
++        Prop<QString>(this, "pressureCurve", &OrgKdeNWinInputDeviceInterface::defaultPressureCurve, nullptr, &InputDevice::pressureCurveChanged);
+ 
+     Prop<quint32> m_tabletPadButtonCount = Prop<quint32>(this, "tabletPadButtonCount");
+     Prop<quint32> m_tabletPadDialCount = Prop<quint32>(this, "tabletPadDialCount");
+@@ -440,13 +440,13 @@ private:
+ 
+     Prop<double> m_pressureRangeMin = Prop<double>(this,
+                                                    "pressureRangeMin",
+-                                                   &OrgKdeKWinInputDeviceInterface::defaultPressureRangeMin,
+-                                                   &OrgKdeKWinInputDeviceInterface::supportsPressureRange,
++                                                   &OrgKdeNWinInputDeviceInterface::defaultPressureRangeMin,
++                                                   &OrgKdeNWinInputDeviceInterface::supportsPressureRange,
+                                                    &InputDevice::pressureRangeMinChanged);
+     Prop<double> m_pressureRangeMax = Prop<double>(this,
+                                                    "pressureRangeMax",
+-                                                   &OrgKdeKWinInputDeviceInterface::defaultPressureRangeMax,
+-                                                   &OrgKdeKWinInputDeviceInterface::supportsPressureRange,
++                                                   &OrgKdeNWinInputDeviceInterface::defaultPressureRangeMax,
++                                                   &OrgKdeNWinInputDeviceInterface::supportsPressureRange,
+                                                    &InputDevice::pressureRangeMaxChanged);
+ 
+     Prop<QString> m_deviceGroup = Prop<QString>(this, "deviceGroupId");
+@@ -454,7 +454,7 @@ private:
+     Prop<bool> m_tabletTool = Prop<bool>(this, "tabletTool");
+     Prop<bool> m_isVirtual = Prop<bool>(this, "isVirtual");
+ 
+-    std::unique_ptr<OrgKdeKWinInputDeviceInterface> m_iface;
++    std::unique_ptr<OrgKdeNWinInputDeviceInterface> m_iface;
+ };
+ 
+-} // namespace KWinDevices
++} // namespace NWinDevices
+diff --git a/kcms/libkwindevices/tests/CMakeLists.txt b/kcms/libnwindevices/tests/CMakeLists.txt
+similarity index 61%
+rename from kcms/libkwindevices/tests/CMakeLists.txt
+rename to kcms/libnwindevices/tests/CMakeLists.txt
+index 1d2705c..208f78a 100644
+--- a/kcms/libkwindevices/tests/CMakeLists.txt
++++ b/kcms/libnwindevices/tests/CMakeLists.txt
+@@ -1,4 +1,4 @@
+ ecm_add_test(
+         TEST_NAME tst_inputdevice
+         tst_inputdevice.cpp tst_inputdevice.cpp)
+-target_link_libraries(tst_inputdevice PRIVATE Qt::Test kwindevices)
++target_link_libraries(tst_inputdevice PRIVATE Qt::Test nwindevices)
+diff --git a/kcms/libkwindevices/tests/tst_inputdevice.cpp b/kcms/libnwindevices/tests/tst_inputdevice.cpp
+similarity index 95%
+rename from kcms/libkwindevices/tests/tst_inputdevice.cpp
+rename to kcms/libnwindevices/tests/tst_inputdevice.cpp
+index 3caa765..2382d6e 100644
+--- a/kcms/libkwindevices/tests/tst_inputdevice.cpp
++++ b/kcms/libnwindevices/tests/tst_inputdevice.cpp
+@@ -10,7 +10,7 @@
+ 
+ #include <QSignalSpy>
+ 
+-using namespace KWinDevices;
++using namespace NWinDevices;
+ 
+ class InputDeviceTest : public QObject
+ {
+diff --git a/kcms/mouse/backends/CMakeLists.txt b/kcms/mouse/backends/CMakeLists.txt
+index 43feef8..dc396d7 100644
+--- a/kcms/mouse/backends/CMakeLists.txt
++++ b/kcms/mouse/backends/CMakeLists.txt
+@@ -1,13 +1,13 @@
+ # // krazy:excludeall=copyright,license
+ 
+-if (BUILD_KCM_MOUSE_KWIN_WAYLAND)
++if (BUILD_KCM_MOUSE_NWIN_WAYLAND)
+     target_sources(kcm_mouse
+         PUBLIC
+-            kwin_wl/kwin_wl_backend.cpp
+-            kwin_wl/kwin_wl_device.cpp
++            nwin_wl/nwin_wl_backend.cpp
++            nwin_wl/nwin_wl_device.cpp
+     )
+ 
+-    target_link_libraries(kcm_mouse PUBLIC Qt::DBus PRIVATE kwindevices)
++    target_link_libraries(kcm_mouse PUBLIC Qt::DBus PRIVATE nwindevices)
+ endif()
+ 
+ if (BUILD_KCM_MOUSE_X11)
+diff --git a/kcms/mouse/backends/kwin_wl/kwin_wl_backend.cpp b/kcms/mouse/backends/nwin_wl/nwin_wl_backend.cpp
+similarity index 72%
+rename from kcms/mouse/backends/kwin_wl/kwin_wl_backend.cpp
+rename to kcms/mouse/backends/nwin_wl/nwin_wl_backend.cpp
+index 1cac00d..6b4c0f8 100644
+--- a/kcms/mouse/backends/kwin_wl/kwin_wl_backend.cpp
++++ b/kcms/mouse/backends/nwin_wl/nwin_wl_backend.cpp
+@@ -4,7 +4,7 @@
+     SPDX-License-Identifier: GPL-2.0-or-later
+ */
+ 
+-#include "kwin_wl_backend.h"
++#include "nwin_wl_backend.h"
+ 
+ #include <algorithm>
+ 
+@@ -17,40 +17,40 @@
+ #include "devicesmodel.h"
+ #include "logging.h"
+ 
+-KWinWaylandBackend::KWinWaylandBackend()
++NWinWaylandBackend::NWinWaylandBackend()
+     : InputBackend()
+-    , m_devicesModel(new KWinDevices::DevicesModel(KWinDevices::DevicesModel::Kind::Pointers, {{QStringLiteral("touchpad"), false}}, this))
++    , m_devicesModel(new NWinDevices::DevicesModel(NWinDevices::DevicesModel::Kind::Pointers, {{QStringLiteral("touchpad"), false}}, this))
+ {
+-    connect(m_devicesModel, &QAbstractItemModel::rowsInserted, this, &KWinWaylandBackend::onDeviceRowsInserted);
+-    connect(m_devicesModel, &QAbstractItemModel::rowsAboutToBeRemoved, this, &KWinWaylandBackend::onDeviceRowsAboutToBeRemoved);
++    connect(m_devicesModel, &QAbstractItemModel::rowsInserted, this, &NWinWaylandBackend::onDeviceRowsInserted);
++    connect(m_devicesModel, &QAbstractItemModel::rowsAboutToBeRemoved, this, &NWinWaylandBackend::onDeviceRowsAboutToBeRemoved);
+ 
+     connect(this, &InputBackend::buttonMappingChanged, this, &InputBackend::needsSaveChanged);
+ 
+     findDevices();
+ }
+ 
+-KWinWaylandBackend::~KWinWaylandBackend()
++NWinWaylandBackend::~NWinWaylandBackend()
+ {
+ }
+ 
+-void KWinWaylandBackend::findDevices()
++void NWinWaylandBackend::findDevices()
+ {
+     for (int i = 0; i < m_devicesModel->rowCount(QModelIndex()); ++i) {
+-        const QString sysName = m_devicesModel->index(i).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(i).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+-        auto dev = std::make_unique<KWinWaylandDevice>(sysName);
++        auto dev = std::make_unique<NWinWaylandDevice>(sysName);
+         if (!dev->init()) {
+             qCCritical(KCM_MOUSE) << "Error on creating device object" << sysName;
+             m_errorString = i18n("Critical error on reading fundamental device infos of %1.", sysName);
+             return;
+         }
+-        connect(dev.get(), &KWinWaylandDevice::needsSaveChanged, this, &InputBackend::needsSaveChanged);
++        connect(dev.get(), &NWinWaylandDevice::needsSaveChanged, this, &InputBackend::needsSaveChanged);
+         qCDebug(KCM_MOUSE).nospace() << "Device found: " << dev->name() << " (" << dev->sysName() << ")";
+         m_devices.push_back(std::move(dev));
+     }
+ }
+ 
+-bool KWinWaylandBackend::forAllDevices(bool (KWinWaylandDevice::*f)()) const
++bool NWinWaylandBackend::forAllDevices(bool (NWinWaylandDevice::*f)()) const
+ {
+     bool ok = true;
+     for (const auto &device : std::as_const(m_devices)) {
+@@ -59,12 +59,12 @@ bool KWinWaylandBackend::forAllDevices(bool (KWinWaylandDevice::*f)()) const
+     return ok;
+ }
+ 
+-KConfigGroup KWinWaylandBackend::mouseButtonRebindsConfigGroup()
++KConfigGroup NWinWaylandBackend::mouseButtonRebindsConfigGroup()
+ {
+     return KSharedConfig::openConfig(u"kcminputrc"_s)->group(u"ButtonRebinds"_s).group(u"Mouse"_s);
+ }
+ 
+-bool KWinWaylandBackend::save()
++bool NWinWaylandBackend::save()
+ {
+     KConfigGroup buttonGroup = mouseButtonRebindsConfigGroup();
+ 
+@@ -77,10 +77,10 @@ bool KWinWaylandBackend::save()
+         }
+     }
+ 
+-    return forAllDevices(&KWinWaylandDevice::save);
++    return forAllDevices(&NWinWaylandDevice::save);
+ }
+ 
+-bool KWinWaylandBackend::load()
++bool NWinWaylandBackend::load()
+ {
+     m_loadedButtonMapping.clear();
+     const KConfigGroup buttonGroup = mouseButtonRebindsConfigGroup();
+@@ -96,27 +96,27 @@ bool KWinWaylandBackend::load()
+     }
+     setButtonMapping(m_loadedButtonMapping);
+ 
+-    return forAllDevices(&KWinWaylandDevice::init);
++    return forAllDevices(&NWinWaylandDevice::init);
+ }
+ 
+-bool KWinWaylandBackend::defaults()
++bool NWinWaylandBackend::defaults()
+ {
+-    return forAllDevices(&KWinWaylandDevice::defaults);
++    return forAllDevices(&NWinWaylandDevice::defaults);
+ }
+ 
+-bool KWinWaylandBackend::isSaveNeeded() const
++bool NWinWaylandBackend::isSaveNeeded() const
+ {
+-    return m_buttonMapping != m_loadedButtonMapping || std::ranges::any_of(std::as_const(m_devices), [](const std::unique_ptr<KWinWaylandDevice> &device) {
++    return m_buttonMapping != m_loadedButtonMapping || std::ranges::any_of(std::as_const(m_devices), [](const std::unique_ptr<NWinWaylandDevice> &device) {
+                return device->isSaveNeeded();
+            });
+ }
+ 
+-QVariantMap KWinWaylandBackend::buttonMapping() const
++QVariantMap NWinWaylandBackend::buttonMapping() const
+ {
+     return m_buttonMapping;
+ }
+ 
+-void KWinWaylandBackend::setButtonMapping(const QVariantMap &mapping)
++void NWinWaylandBackend::setButtonMapping(const QVariantMap &mapping)
+ {
+     if (m_buttonMapping != mapping) {
+         m_buttonMapping = mapping;
+@@ -124,18 +124,18 @@ void KWinWaylandBackend::setButtonMapping(const QVariantMap &mapping)
+     }
+ }
+ 
+-void KWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int first, int last)
++void NWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int first, int last)
+ {
+     for (int i = first; i <= last; ++i) {
+-        const QString sysName = m_devicesModel->index(i, 0, parent).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(i, 0, parent).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+-        auto dev = std::make_unique<KWinWaylandDevice>(sysName);
++        auto dev = std::make_unique<NWinWaylandDevice>(sysName);
+         if (!dev->init()) {
+             Q_EMIT deviceAdded(false);
+             return;
+         }
+ 
+-        connect(dev.get(), &KWinWaylandDevice::needsSaveChanged, this, &InputBackend::needsSaveChanged);
++        connect(dev.get(), &NWinWaylandDevice::needsSaveChanged, this, &InputBackend::needsSaveChanged);
+         qCDebug(KCM_MOUSE).nospace() << "Device connected: " << dev->name() << " (" << dev->sysName() << ")";
+         m_devices.push_back(std::move(dev));
+         Q_EMIT deviceAdded(true);
+@@ -143,13 +143,13 @@ void KWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int fir
+     }
+ }
+ 
+-void KWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last)
++void NWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last)
+ {
+     bool deviceNeededSave = true;
+     for (int i = first; i <= last; ++i) {
+-        const QString sysName = m_devicesModel->index(i, 0, parent).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(i, 0, parent).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+-        const auto it = std::ranges::find_if(std::as_const(m_devices), [&sysName](const std::unique_ptr<KWinWaylandDevice> &device) {
++        const auto it = std::ranges::find_if(std::as_const(m_devices), [&sysName](const std::unique_ptr<NWinWaylandDevice> &device) {
+             return device->sysName() == sysName;
+         });
+         if (it == m_devices.cend()) {
+@@ -158,7 +158,7 @@ void KWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent,
+         const int index = std::distance(m_devices.cbegin(), it);
+ 
+         // delete at the end of the function, after change signals have been fired
+-        std::unique_ptr<KWinWaylandDevice> dev = std::move(m_devices[index]);
++        std::unique_ptr<NWinWaylandDevice> dev = std::move(m_devices[index]);
+         m_devices.erase(m_devices.cbegin() + index);
+ 
+         deviceNeededSave &= dev->isSaveNeeded();
+@@ -175,7 +175,7 @@ void KWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent,
+     }
+ }
+ 
+-QList<InputDevice *> KWinWaylandBackend::inputDevices() const
++QList<InputDevice *> NWinWaylandBackend::inputDevices() const
+ {
+     QList<InputDevice *> devices;
+     devices.reserve(m_devices.size());
+@@ -185,14 +185,14 @@ QList<InputDevice *> KWinWaylandBackend::inputDevices() const
+     return devices;
+ }
+ 
+-int KWinWaylandBackend::deviceCount() const
++int NWinWaylandBackend::deviceCount() const
+ {
+     return m_devices.size();
+ }
+ 
+-QString KWinWaylandBackend::errorString() const
++QString NWinWaylandBackend::errorString() const
+ {
+     return m_errorString;
+ }
+ 
+-#include "moc_kwin_wl_backend.cpp"
++#include "moc_nwin_wl_backend.cpp"
+diff --git a/kcms/mouse/backends/kwin_wl/kwin_wl_backend.h b/kcms/mouse/backends/nwin_wl/nwin_wl_backend.h
+similarity index 76%
+rename from kcms/mouse/backends/kwin_wl/kwin_wl_backend.h
+rename to kcms/mouse/backends/nwin_wl/nwin_wl_backend.h
+index 4fa8bc0..6a496b9 100644
+--- a/kcms/mouse/backends/kwin_wl/kwin_wl_backend.h
++++ b/kcms/mouse/backends/nwin_wl/nwin_wl_backend.h
+@@ -7,25 +7,25 @@
+ #pragma once
+ 
+ #include "inputbackend.h"
+-#include "kwin_wl_device.h"
++#include "nwin_wl_device.h"
+ 
+ #include <KConfigGroup>
+ 
+ #include <memory>
+ #include <vector>
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ class DevicesModel;
+ }
+ 
+-class KWinWaylandBackend : public InputBackend
++class NWinWaylandBackend : public InputBackend
+ {
+     Q_OBJECT
+ 
+ public:
+-    explicit KWinWaylandBackend();
+-    ~KWinWaylandBackend();
++    explicit NWinWaylandBackend();
++    ~NWinWaylandBackend();
+ 
+     bool save() override;
+     bool load() override;
+@@ -41,15 +41,15 @@ public:
+ private:
+     void findDevices();
+     // all_of without short-circuiting is like for_each but with an AND-reduced accumulator.
+-    bool forAllDevices(bool (KWinWaylandDevice::*f)()) const;
++    bool forAllDevices(bool (NWinWaylandDevice::*f)()) const;
+ 
+     void onDeviceRowsInserted(const QModelIndex &parent, int first, int last);
+     void onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last);
+ 
+     static KConfigGroup mouseButtonRebindsConfigGroup();
+ 
+-    KWinDevices::DevicesModel *m_devicesModel;
+-    std::vector<std::unique_ptr<KWinWaylandDevice>> m_devices;
++    NWinDevices::DevicesModel *m_devicesModel;
++    std::vector<std::unique_ptr<NWinWaylandDevice>> m_devices;
+     QVariantMap m_buttonMapping;
+     QVariantMap m_loadedButtonMapping;
+ 
+diff --git a/kcms/mouse/backends/kwin_wl/kwin_wl_device.cpp b/kcms/mouse/backends/nwin_wl/nwin_wl_device.cpp
+similarity index 89%
+rename from kcms/mouse/backends/kwin_wl/kwin_wl_device.cpp
+rename to kcms/mouse/backends/nwin_wl/nwin_wl_device.cpp
+index 63fc8ef..b679a69 100644
+--- a/kcms/mouse/backends/kwin_wl/kwin_wl_device.cpp
++++ b/kcms/mouse/backends/nwin_wl/nwin_wl_device.cpp
+@@ -4,7 +4,7 @@
+     SPDX-License-Identifier: GPL-2.0-or-later
+ */
+ 
+-#include "kwin_wl_device.h"
++#include "nwin_wl_device.h"
+ 
+ #include <QDBusConnection>
+ #include <QDBusError>
+@@ -30,25 +30,25 @@ Qt::MouseButtons valueLoaderPart(const QVariant &reply)
+ 
+ }
+ 
+-KWinWaylandDevice::KWinWaylandDevice(const QString &dbusName)
++NWinWaylandDevice::NWinWaylandDevice(const QString &dbusName)
+     : InputDevice()
+     , m_dbusName(dbusName)
+ {
+ }
+ 
+-KWinWaylandDevice::~KWinWaylandDevice()
++NWinWaylandDevice::~NWinWaylandDevice()
+ {
+ }
+ 
+-bool KWinWaylandDevice::init()
++bool NWinWaylandDevice::init()
+ {
+     bool success = true;
+ 
+-    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/InputDevice/") + m_dbusName,
++    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
++                                                  QStringLiteral("/org/kde/NWin/InputDevice/") + m_dbusName,
+                                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                   QStringLiteral("GetAll"));
+-    message << QStringLiteral("org.kde.KWin.InputDevice");
++    message << QStringLiteral("org.kde.NWin.InputDevice");
+     QDBusReply<QVariantMap> reply = QDBusConnection::sessionBus().call(message);
+ 
+     if (!reply.isValid()) {
+@@ -97,7 +97,7 @@ bool KWinWaylandDevice::init()
+     return success;
+ }
+ 
+-bool KWinWaylandDevice::defaults()
++bool NWinWaylandDevice::defaults()
+ {
+     // general & advanced
+     m_enabled.set(true);
+@@ -115,7 +115,7 @@ bool KWinWaylandDevice::defaults()
+     return true;
+ }
+ 
+-bool KWinWaylandDevice::save()
++bool NWinWaylandDevice::save()
+ {
+     bool success = true;
+ 
+@@ -135,7 +135,7 @@ bool KWinWaylandDevice::save()
+     return success;
+ }
+ 
+-bool KWinWaylandDevice::isSaveNeeded() const
++bool NWinWaylandDevice::isSaveNeeded() const
+ {
+     //     general & advanced
+     return m_enabled.isSaveNeeded() //
+@@ -152,7 +152,7 @@ bool KWinWaylandDevice::isSaveNeeded() const
+ }
+ 
+ template<typename T>
+-bool KWinWaylandDevice::valueLoader(const QVariantMap &properties, Prop<T> &prop)
++bool NWinWaylandDevice::valueLoader(const QVariantMap &properties, Prop<T> &prop)
+ {
+     if (const auto variant = properties.value(prop.dbus); variant.isValid()) {
+         prop.avail = true;
+@@ -167,16 +167,16 @@ bool KWinWaylandDevice::valueLoader(const QVariantMap &properties, Prop<T> &prop
+ };
+ 
+ template<typename T>
+-bool KWinWaylandDevice::valueWriter(const Prop<T> &prop)
++bool NWinWaylandDevice::valueWriter(const Prop<T> &prop)
+ {
+     if (!prop.isSaveNeeded()) {
+         return true;
+     }
+-    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/InputDevice/") + m_dbusName,
++    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
++                                                  QStringLiteral("/org/kde/NWin/InputDevice/") + m_dbusName,
+                                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                   QStringLiteral("Set"));
+-    message << QStringLiteral("org.kde.KWin.InputDevice") << prop.dbus << QVariant::fromValue(QDBusVariant(prop.val));
++    message << QStringLiteral("org.kde.NWin.InputDevice") << prop.dbus << QVariant::fromValue(QDBusVariant(prop.val));
+     QDBusReply<void> reply = QDBusConnection::sessionBus().call(message);
+     if (reply.error().isValid()) {
+         qCCritical(KCM_MOUSE) << reply.error().message();
+@@ -185,4 +185,4 @@ bool KWinWaylandDevice::valueWriter(const Prop<T> &prop)
+     return true;
+ }
+ 
+-#include "moc_kwin_wl_device.cpp"
++#include "moc_nwin_wl_device.cpp"
+diff --git a/kcms/mouse/backends/kwin_wl/kwin_wl_device.h b/kcms/mouse/backends/nwin_wl/nwin_wl_device.h
+similarity index 90%
+rename from kcms/mouse/backends/kwin_wl/kwin_wl_device.h
+rename to kcms/mouse/backends/nwin_wl/nwin_wl_device.h
+index 318be5f..5448c5a 100644
+--- a/kcms/mouse/backends/kwin_wl/kwin_wl_device.h
++++ b/kcms/mouse/backends/nwin_wl/nwin_wl_device.h
+@@ -15,13 +15,13 @@ using namespace Qt::StringLiterals;
+ 
+ class QDBusInterface;
+ 
+-class KWinWaylandDevice : public InputDevice
++class NWinWaylandDevice : public InputDevice
+ {
+     Q_OBJECT
+ 
+ public:
+-    KWinWaylandDevice(const QString &dbusName);
+-    ~KWinWaylandDevice() override;
++    NWinWaylandDevice(const QString &dbusName);
++    ~NWinWaylandDevice() override;
+ 
+     bool init();
+ 
+@@ -215,9 +215,9 @@ public:
+ private:
+     template<typename T>
+     struct Prop {
+-        using ChangedSignal = void (KWinWaylandDevice::*)();
++        using ChangedSignal = void (NWinWaylandDevice::*)();
+ 
+-        explicit Prop(KWinWaylandDevice *device, const QString &dbusName, ChangedSignal changedSignal = nullptr)
++        explicit Prop(NWinWaylandDevice *device, const QString &dbusName, ChangedSignal changedSignal = nullptr)
+             : dbus(dbusName)
+             , avail(false)
+             , changedSignalFunction(changedSignal)
+@@ -259,7 +259,7 @@ private:
+         QString dbus;
+         bool avail;
+         const ChangedSignal changedSignalFunction;
+-        KWinWaylandDevice *const device;
++        NWinWaylandDevice *const device;
+         T old;
+         T val;
+     };
+@@ -275,7 +275,7 @@ private:
+     Prop<QString> m_name{this, u"name"_s};
+     Prop<QString> m_sysName{this, u"sysName"_s};
+     Prop<bool> m_supportsDisableEvents{this, u"supportsDisableEvents"_s};
+-    Prop<bool> m_enabled{this, u"enabled"_s, &KWinWaylandDevice::enabledChanged};
++    Prop<bool> m_enabled{this, u"enabled"_s, &NWinWaylandDevice::enabledChanged};
+ 
+     //
+     // advanced
+@@ -283,37 +283,37 @@ private:
+ 
+     Prop<bool> m_supportsLeftHanded{this, u"supportsLeftHanded"_s};
+     Prop<bool> m_leftHandedEnabledByDefault{this, u"leftHandedEnabledByDefault"_s};
+-    Prop<bool> m_leftHanded{this, u"leftHanded"_s, &KWinWaylandDevice::leftHandedChanged};
++    Prop<bool> m_leftHanded{this, u"leftHanded"_s, &NWinWaylandDevice::leftHandedChanged};
+ 
+     Prop<bool> m_supportsMiddleEmulation{this, u"supportsMiddleEmulation"_s};
+     Prop<bool> m_middleEmulationEnabledByDefault{this, u"middleEmulationEnabledByDefault"_s};
+-    Prop<bool> m_middleEmulation{this, u"middleEmulation"_s, &KWinWaylandDevice::middleEmulationChanged};
++    Prop<bool> m_middleEmulation{this, u"middleEmulation"_s, &NWinWaylandDevice::middleEmulationChanged};
+ 
+     //
+     // acceleration speed and profile
+     Prop<bool> m_supportsPointerAcceleration{this, u"supportsPointerAcceleration"_s};
+     Prop<qreal> m_defaultPointerAcceleration{this, u"defaultPointerAcceleration"_s};
+-    Prop<qreal> m_pointerAcceleration{this, u"pointerAcceleration"_s, &KWinWaylandDevice::pointerAccelerationChanged};
++    Prop<qreal> m_pointerAcceleration{this, u"pointerAcceleration"_s, &NWinWaylandDevice::pointerAccelerationChanged};
+ 
+     Prop<bool> m_supportsPointerAccelerationProfileFlat{this, u"supportsPointerAccelerationProfileFlat"_s};
+     Prop<bool> m_defaultPointerAccelerationProfileFlat{this, u"defaultPointerAccelerationProfileFlat"_s};
+-    Prop<bool> m_pointerAccelerationProfileFlat{this, u"pointerAccelerationProfileFlat"_s, &KWinWaylandDevice::pointerAccelerationProfileFlatChanged};
++    Prop<bool> m_pointerAccelerationProfileFlat{this, u"pointerAccelerationProfileFlat"_s, &NWinWaylandDevice::pointerAccelerationProfileFlatChanged};
+ 
+     Prop<bool> m_supportsPointerAccelerationProfileAdaptive{this, u"supportsPointerAccelerationProfileAdaptive"_s};
+     Prop<bool> m_defaultPointerAccelerationProfileAdaptive{this, u"defaultPointerAccelerationProfileAdaptive"_s};
+     Prop<bool> m_pointerAccelerationProfileAdaptive{this,
+                                                     u"pointerAccelerationProfileAdaptive"_s,
+-                                                    &KWinWaylandDevice::pointerAccelerationProfileAdaptiveChanged};
++                                                    &NWinWaylandDevice::pointerAccelerationProfileAdaptiveChanged};
+ 
+     //
+     // scrolling
+     Prop<bool> m_supportsNaturalScroll{this, u"supportsNaturalScroll"_s};
+     Prop<bool> m_naturalScrollEnabledByDefault{this, u"naturalScrollEnabledByDefault"_s};
+-    Prop<bool> m_naturalScroll{this, u"naturalScroll"_s, &KWinWaylandDevice::naturalScrollChanged};
+-    Prop<qreal> m_scrollFactor{this, u"scrollFactor"_s, &KWinWaylandDevice::scrollFactorChanged};
++    Prop<bool> m_naturalScroll{this, u"naturalScroll"_s, &NWinWaylandDevice::naturalScrollChanged};
++    Prop<qreal> m_scrollFactor{this, u"scrollFactor"_s, &NWinWaylandDevice::scrollFactorChanged};
+     Prop<bool> m_supportsScrollOnButtonDown{this, u"supportsScrollOnButtonDown"_s};
+     Prop<bool> m_scrollOnButtonDownEnabledByDefault{this, u"scrollOnButtonDownEnabledByDefault"_s};
+-    Prop<bool> m_scrollOnButtonDown{this, u"scrollOnButtonDown"_s, &KWinWaylandDevice::scrollOnButtonDownChanged};
++    Prop<bool> m_scrollOnButtonDown{this, u"scrollOnButtonDown"_s, &NWinWaylandDevice::scrollOnButtonDownChanged};
+ 
+     QString m_dbusName;
+ };
+diff --git a/kcms/mouse/inputbackend.cpp b/kcms/mouse/inputbackend.cpp
+index 90de419..802fcc1 100644
+--- a/kcms/mouse/inputbackend.cpp
++++ b/kcms/mouse/inputbackend.cpp
+@@ -11,8 +11,8 @@
+ 
+ #include <qqml.h>
+ 
+-#if BUILD_KCM_MOUSE_KWIN_WAYLAND
+-#include "backends/kwin_wl/kwin_wl_backend.h"
++#if BUILD_KCM_MOUSE_NWIN_WAYLAND
++#include "backends/nwin_wl/nwin_wl_backend.h"
+ #endif
+ #if BUILD_KCM_MOUSE_X11
+ #include "backends/x11/x11_libinput_backend.h"
+@@ -36,10 +36,10 @@ std::unique_ptr<InputBackend> InputBackend::create()
+         }
+     }
+ #endif
+-#if BUILD_KCM_MOUSE_KWIN_WAYLAND
++#if BUILD_KCM_MOUSE_NWIN_WAYLAND
+     if (KWindowSystem::isPlatformWayland()) {
+-        qCDebug(KCM_MOUSE) << "Using KWin+Wayland backend";
+-        return std::make_unique<KWinWaylandBackend>();
++        qCDebug(KCM_MOUSE) << "Using NWin+Wayland backend";
++        return std::make_unique<NWinWaylandBackend>();
+     }
+ #endif
+ 
+@@ -52,8 +52,8 @@ void InputBackend::registerImplementationTypes(const char *uri)
+ #if BUILD_KCM_MOUSE_X11
+     qmlRegisterUncreatableType<X11LibinputBackend>(uri, 1, 0, "X11LibinputBackend", QString());
+ #endif
+-#if BUILD_KCM_MOUSE_KWIN_WAYLAND
+-    qmlRegisterUncreatableType<KWinWaylandBackend>(uri, 1, 0, "KWinWaylandBackend", QString());
++#if BUILD_KCM_MOUSE_NWIN_WAYLAND
++    qmlRegisterUncreatableType<NWinWaylandBackend>(uri, 1, 0, "NWinWaylandBackend", QString());
+ #endif
+ }
+ 
+diff --git a/kcms/mouse/ui/bindings.qml b/kcms/mouse/ui/bindings.qml
+index f6e4ed0..0b479d4 100644
+--- a/kcms/mouse/ui/bindings.qml
++++ b/kcms/mouse/ui/bindings.qml
+@@ -22,7 +22,7 @@ import org.kde.plasma.private.kcm_mouse as Mouse
+ KCMUtils.SimpleKCM {
+     id: root
+ 
+-    readonly property Mouse.KWinWaylandBackend backend: KCMUtils.ConfigModule.inputBackend
++    readonly property Mouse.NWinWaylandBackend backend: KCMUtils.ConfigModule.inputBackend
+ 
+     title: i18ndc("kcmmouse", "@title", "Extra Mouse Buttons")
+ 
+diff --git a/kcms/tablet/CMakeLists.txt b/kcms/tablet/CMakeLists.txt
+index 76d8dd8..94fe827 100644
+--- a/kcms/tablet/CMakeLists.txt
++++ b/kcms/tablet/CMakeLists.txt
+@@ -46,7 +46,7 @@ target_link_libraries(kcm_tablet PRIVATE
+     Qt::DBus
+     Qt::WaylandClient
+     Wayland::Client
+-    kwindevices
++    nwindevices
+     Canberra::Canberra
+     PkgConfig::LIBWACOM
+ )
+diff --git a/kcms/tablet/calibrationtool.cpp b/kcms/tablet/calibrationtool.cpp
+index 7f1ec8e..ee51eb1 100644
+--- a/kcms/tablet/calibrationtool.cpp
++++ b/kcms/tablet/calibrationtool.cpp
+@@ -101,13 +101,13 @@ void CalibrationTool::calibrate(const double touchX, const double touchY, const
+     checkIfFinished();
+ }
+ 
+-void CalibrationTool::setCalibrationMatrix(KWinDevices::InputDevice *device, const QMatrix4x4 &matrix)
++void CalibrationTool::setCalibrationMatrix(NWinDevices::InputDevice *device, const QMatrix4x4 &matrix)
+ {
+     Q_ASSERT(device);
+     device->setCalibrationMatrix(device->calibrationMatrix() * matrix);
+ }
+ 
+-void CalibrationTool::restoreDefaults(KWinDevices::InputDevice *device)
++void CalibrationTool::restoreDefaults(NWinDevices::InputDevice *device)
+ {
+     Q_ASSERT(device);
+     device->setCalibrationMatrix(device->defaultCalibrationMatrix());
+diff --git a/kcms/tablet/calibrationtool.h b/kcms/tablet/calibrationtool.h
+index ad0fbea..a4d5363 100644
+--- a/kcms/tablet/calibrationtool.h
++++ b/kcms/tablet/calibrationtool.h
+@@ -80,13 +80,13 @@ public Q_SLOTS:
+      * @param device The input device to set the calibration matrix for.
+      * @param matrix The matrix to use, this should come from finished().
+      */
+-    void setCalibrationMatrix(KWinDevices::InputDevice *device, const QMatrix4x4 &matrix);
++    void setCalibrationMatrix(NWinDevices::InputDevice *device, const QMatrix4x4 &matrix);
+ 
+     /**
+      * @brief Restores the default calibration matrix for the input device.
+      * @param device The input device to restore the calibration for.
+      */
+-    void restoreDefaults(KWinDevices::InputDevice *device);
++    void restoreDefaults(NWinDevices::InputDevice *device);
+ 
+     /**
+      * @brief Restarts the calibration process, getting rid of any existing point data.
+diff --git a/kcms/tablet/inputsequence.cpp b/kcms/tablet/inputsequence.cpp
+index 6782aa6..68a3ac4 100644
+--- a/kcms/tablet/inputsequence.cpp
++++ b/kcms/tablet/inputsequence.cpp
+@@ -11,7 +11,7 @@
+ 
+ using namespace Qt::StringLiterals;
+ 
+-// KWin needs the button defined in linux's input-event-code.h
++// NWin needs the button defined in linux's input-event-code.h
+ constexpr int BTN_LEFT = 0x110;
+ constexpr int BTN_RIGHT = 0x111;
+ constexpr int BTN_MIDDLE = 0x112;
+@@ -159,7 +159,7 @@ QStringList InputSequence::toConfigFormat() const
+         return values;
+     }
+     case Type::ApplicationDefined:
+-        return QStringList{}; // to pass events through, just don't give KWin anything
++        return QStringList{}; // to pass events through, just don't give NWin anything
+     case Type::Pen: {
+         int linuxButton;
+         switch (penData()) {
+diff --git a/kcms/tablet/inputsequence.h b/kcms/tablet/inputsequence.h
+index b2e390f..03cd1ed 100644
+--- a/kcms/tablet/inputsequence.h
++++ b/kcms/tablet/inputsequence.h
+@@ -40,7 +40,7 @@ public:
+     InputSequence();
+ 
+     /**
+-     * @brief Constructs an InputSequence from the kcminputrc format read by KWin.
++     * @brief Constructs an InputSequence from the kcminputrc format read by NWin.
+      */
+     explicit InputSequence(const QStringList &config);
+ 
+@@ -55,7 +55,7 @@ public:
+     void setType(Type type);
+ 
+     /**
+-     * @return This InputSequence serialized to the kcminputrc format read by KWin.
++     * @return This InputSequence serialized to the kcminputrc format read by NWin.
+      */
+     QStringList toConfigFormat() const;
+ 
+diff --git a/kcms/tablet/kcmtablet.cpp b/kcms/tablet/kcmtablet.cpp
+index dae3308..289c2d1 100644
+--- a/kcms/tablet/kcmtablet.cpp
++++ b/kcms/tablet/kcmtablet.cpp
+@@ -126,7 +126,7 @@ public:
+         return item(row)->data(Qt::UserRole).toString();
+     }
+ 
+-    Q_SCRIPTABLE int rowForDevice(KWinDevices::InputDevice *device)
++    Q_SCRIPTABLE int rowForDevice(NWinDevices::InputDevice *device)
+     {
+         if (!device) {
+             return 0;
+@@ -174,7 +174,7 @@ class StylusButtonsModel : public QStandardItemModel
+     Q_OBJECT
+ 
+     Q_PROPERTY(WacomDeviceDatabase *db READ db WRITE setDb NOTIFY dbChanged REQUIRED)
+-    Q_PROPERTY(KWinDevices::InputDevice *device READ device WRITE setDevice NOTIFY deviceChanged REQUIRED)
++    Q_PROPERTY(NWinDevices::InputDevice *device READ device WRITE setDevice NOTIFY deviceChanged REQUIRED)
+ 
+ public:
+     enum CustomRoles {
+@@ -207,12 +207,12 @@ public:
+         }
+     }
+ 
+-    KWinDevices::InputDevice *device() const
++    NWinDevices::InputDevice *device() const
+     {
+         return m_device;
+     }
+ 
+-    void setDevice(KWinDevices::InputDevice *device)
++    void setDevice(NWinDevices::InputDevice *device)
+     {
+         if (m_device != device) {
+             m_device = device;
+@@ -286,7 +286,7 @@ private:
+     }
+ 
+     WacomDeviceDatabase *m_db = nullptr;
+-    KWinDevices::InputDevice *m_device = nullptr;
++    NWinDevices::InputDevice *m_device = nullptr;
+ };
+ 
+ Tablet::Tablet(QObject *parent, const KPluginMetaData &metaData)
+@@ -303,7 +303,7 @@ Tablet::Tablet(QObject *parent, const KPluginMetaData &metaData)
+     qmlRegisterType<OrientationsModel>("org.kde.plasma.tablet.kcm", 1, 0, "OrientationsModel");
+     qmlRegisterType<StylusButtonsModel>("org.kde.plasma.tablet.kcm", 1, 1, "StylusButtonsModel");
+     qmlRegisterType<TabletEvents>("org.kde.plasma.tablet.kcm", 1, 1, "TabletEvents");
+-    qmlRegisterUncreatableType<KWinDevices::InputDevice>("org.kde.plasma.tablet.kcm", 1, 0, "InputDevice", "Access from C++ only");
++    qmlRegisterUncreatableType<NWinDevices::InputDevice>("org.kde.plasma.tablet.kcm", 1, 0, "InputDevice", "Access from C++ only");
+     qmlRegisterType<CalibrationTool>("org.kde.plasma.tablet.kcm", 1, 1, "CalibrationTool");
+     // This looks weird, but the first type here is the value type. The second type is here is just for the enumerations.
+     // Yes, this IS what they suggest you do: https://doc.qt.io/qt-6/qtqml-cppintegration-definetypes.html#value-types-with-enumerations
+diff --git a/kcms/tablet/tabletsmodel.cpp b/kcms/tablet/tabletsmodel.cpp
+index 798e79f..a657fc2 100644
+--- a/kcms/tablet/tabletsmodel.cpp
++++ b/kcms/tablet/tabletsmodel.cpp
+@@ -23,15 +23,15 @@ TabletsModel::TabletsModel(WacomDeviceDatabase *db, QObject *parent)
+ 
+     resetModel();
+ 
+-    QDBusConnection::sessionBus().connect(QStringLiteral("org.kde.KWin"),
+-                                          QStringLiteral("/org/kde/KWin/InputDevice"),
+-                                          QStringLiteral("org.kde.KWin.InputDeviceManager"),
++    QDBusConnection::sessionBus().connect(QStringLiteral("org.kde.NWin"),
++                                          QStringLiteral("/org/kde/NWin/InputDevice"),
++                                          QStringLiteral("org.kde.NWin.InputDeviceManager"),
+                                           QStringLiteral("deviceAdded"),
+                                           this,
+                                           SLOT(onDeviceAdded(QString)));
+-    QDBusConnection::sessionBus().connect(QStringLiteral("org.kde.KWin"),
+-                                          QStringLiteral("/org/kde/KWin/InputDevice"),
+-                                          QStringLiteral("org.kde.KWin.InputDeviceManager"),
++    QDBusConnection::sessionBus().connect(QStringLiteral("org.kde.NWin"),
++                                          QStringLiteral("/org/kde/NWin/InputDevice"),
++                                          QStringLiteral("org.kde.NWin.InputDeviceManager"),
+                                           QStringLiteral("deviceRemoved"),
+                                           this,
+                                           SLOT(onDeviceRemoved(QString)));
+@@ -39,11 +39,11 @@ TabletsModel::TabletsModel(WacomDeviceDatabase *db, QObject *parent)
+ 
+ void TabletsModel::resetModel()
+ {
+-    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/InputDevice"),
++    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
++                                                  QStringLiteral("/org/kde/NWin/InputDevice"),
+                                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                   QStringLiteral("Get"));
+-    message << "org.kde.KWin.InputDeviceManager"
++    message << "org.kde.NWin.InputDeviceManager"
+             << "devicesSysNames";
+     QDBusConnection::sessionBus().callWithCallback(message, this, SLOT(loadReply(QDBusMessage)));
+ }
+@@ -181,7 +181,7 @@ void TabletsModel::onDeviceAdded(const QString &sysName)
+ 
+ void TabletsModel::addDevice(const QString &sysName, bool tellModel)
+ {
+-    auto dev = new KWinDevices::InputDevice(sysName, this);
++    auto dev = new NWinDevices::InputDevice(sysName, this);
+     const bool isTabletTool = dev->tabletTool();
+     const bool isTabletPad = dev->tabletPad();
+     if (!isTabletTool && !isTabletPad) {
+@@ -189,7 +189,7 @@ void TabletsModel::addDevice(const QString &sysName, bool tellModel)
+         return;
+     }
+ 
+-    connect(dev, &KWinDevices::InputDevice::needsSaveChanged, this, &TabletsModel::needsSaveChanged);
++    connect(dev, &NWinDevices::InputDevice::needsSaveChanged, this, &TabletsModel::needsSaveChanged);
+ 
+     QString deviceGroup = dev->deviceGroup();
+ 
+@@ -275,7 +275,7 @@ void TabletsModel::loadReply(QDBusMessage reply)
+     if (reply.type() == QDBusMessage::ReplyMessage) {
+         devicesSysNames = reply.arguments().first().value<QDBusVariant>().variant().toStringList();
+     } else {
+-        qCWarning(KCM_TABLET) << "Error on receiving device list from KWin:" << reply.errorMessage();
++        qCWarning(KCM_TABLET) << "Error on receiving device list from NWin:" << reply.errorMessage();
+         return;
+     }
+ 
+@@ -285,7 +285,7 @@ void TabletsModel::loadReply(QDBusMessage reply)
+     endResetModel();
+ }
+ 
+-KWinDevices::InputDevice *TabletsModel::penAt(int row) const
++NWinDevices::InputDevice *TabletsModel::penAt(int row) const
+ {
+     if (row == -1) {
+         return nullptr;
+@@ -294,7 +294,7 @@ KWinDevices::InputDevice *TabletsModel::penAt(int row) const
+     return m_devices[row].penDevice;
+ }
+ 
+-KWinDevices::InputDevice *TabletsModel::padAt(int row) const
++NWinDevices::InputDevice *TabletsModel::padAt(int row) const
+ {
+     if (row == -1) {
+         return nullptr;
+diff --git a/kcms/tablet/tabletsmodel.h b/kcms/tablet/tabletsmodel.h
+index caa2b41..04e7d72 100644
+--- a/kcms/tablet/tabletsmodel.h
++++ b/kcms/tablet/tabletsmodel.h
+@@ -20,8 +20,8 @@ extern "C" {
+ 
+ struct TabletDevice {
+     QString deviceGroup;
+-    KWinDevices::InputDevice *padDevice = nullptr;
+-    KWinDevices::InputDevice *penDevice = nullptr;
++    NWinDevices::InputDevice *padDevice = nullptr;
++    NWinDevices::InputDevice *penDevice = nullptr;
+ };
+ 
+ class TabletsModel : public QAbstractListModel
+@@ -42,8 +42,8 @@ public:
+     bool isDefaults() const;
+ 
+ public Q_SLOTS:
+-    KWinDevices::InputDevice *penAt(int row) const;
+-    KWinDevices::InputDevice *padAt(int row) const;
++    NWinDevices::InputDevice *penAt(int row) const;
++    NWinDevices::InputDevice *padAt(int row) const;
+ 
+ private Q_SLOTS:
+     void onDeviceAdded(const QString &sysName);
+diff --git a/kcms/tablet/tests/CMakeLists.txt b/kcms/tablet/tests/CMakeLists.txt
+index 15bd185..6649095 100644
+--- a/kcms/tablet/tests/CMakeLists.txt
++++ b/kcms/tablet/tests/CMakeLists.txt
+@@ -1,5 +1,5 @@
+ ecm_add_test(
+         TEST_NAME tst_calibrationtool
+         tst_calibrationtool.cpp ../calibrationtool.cpp ${CMAKE_CURRENT_BINARY_DIR}/../logging.cpp)
+-target_link_libraries(tst_calibrationtool PRIVATE Qt::Test KF6::ConfigCore Canberra::Canberra kwindevices)
++target_link_libraries(tst_calibrationtool PRIVATE Qt::Test KF6::ConfigCore Canberra::Canberra nwindevices)
+ target_include_directories(tst_calibrationtool PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/..) # ECM logging from the KCM
+diff --git a/kcms/tablet/ui/StylusTab.qml b/kcms/tablet/ui/StylusTab.qml
+index 1bfc7d2..ee6df99 100644
+--- a/kcms/tablet/ui/StylusTab.qml
++++ b/kcms/tablet/ui/StylusTab.qml
+@@ -316,7 +316,7 @@ Item {
+                     id: seq
+ 
+                     required property string label
+-                    required property int value // Gives us BTN_STYLUS, etc which KWin accepts
++                    required property int value // Gives us BTN_STYLUS, etc which NWin accepts
+                     required name
+ 
+                     Kirigami.FormData.label: (buttonPressed ? "<b>" : "") + label + (buttonPressed ? "</b>" : "")
+diff --git a/kcms/touchpad/backends/CMakeLists.txt b/kcms/touchpad/backends/CMakeLists.txt
+index cffc8e2..56f4a34 100644
+--- a/kcms/touchpad/backends/CMakeLists.txt
++++ b/kcms/touchpad/backends/CMakeLists.txt
+@@ -2,13 +2,13 @@
+ 
+ target_sources(touchpad_common PUBLIC libinputcommon.cpp)
+ 
+-if (BUILD_KCM_TOUCHPAD_KWIN_WAYLAND)
++if (BUILD_KCM_TOUCHPAD_NWIN_WAYLAND)
+     target_sources(touchpad_common
+         PUBLIC
+-            kwin_wayland/kwinwaylandbackend.cpp
+-            kwin_wayland/kwinwaylandtouchpad.cpp
++            nwin_wayland/nwinwaylandbackend.cpp
++            nwin_wayland/nwinwaylandtouchpad.cpp
+     )
+-    target_link_libraries(touchpad_common PUBLIC KF6::I18n kwindevices)
++    target_link_libraries(touchpad_common PUBLIC KF6::I18n nwindevices)
+ endif()
+ 
+ if (BUILD_KCM_TOUCHPAD_X11)
+diff --git a/kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.cpp b/kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.cpp
+similarity index 70%
+rename from kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.cpp
+rename to kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.cpp
+index 35333ff..ad7b577 100644
+--- a/kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.cpp
++++ b/kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.cpp
+@@ -4,8 +4,8 @@
+     SPDX-License-Identifier: GPL-2.0-or-later
+ */
+ 
+-#include "kwinwaylandbackend.h"
+-#include "kwinwaylandtouchpad.h"
++#include "nwinwaylandbackend.h"
++#include "nwinwaylandtouchpad.h"
+ 
+ #include <algorithm>
+ 
+@@ -18,35 +18,35 @@
+ #include "devicesmodel.h"
+ #include "logging.h"
+ 
+-KWinWaylandBackend::KWinWaylandBackend(QObject *parent)
++NWinWaylandBackend::NWinWaylandBackend(QObject *parent)
+     : TouchpadBackend(parent)
+-    , m_devicesModel(new KWinDevices::DevicesModel(KWinDevices::DevicesModel::Kind::Pointers, {{QStringLiteral("touchpad"), true}}, this))
++    , m_devicesModel(new NWinDevices::DevicesModel(NWinDevices::DevicesModel::Kind::Pointers, {{QStringLiteral("touchpad"), true}}, this))
+ {
+     setMode(TouchpadInputBackendMode::WaylandLibinput);
+ 
+-    connect(m_devicesModel, &QAbstractItemModel::rowsInserted, this, &KWinWaylandBackend::onDeviceRowsInserted);
+-    connect(m_devicesModel, &QAbstractItemModel::rowsAboutToBeRemoved, this, &KWinWaylandBackend::onDeviceRowsAboutToBeRemoved);
++    connect(m_devicesModel, &QAbstractItemModel::rowsInserted, this, &NWinWaylandBackend::onDeviceRowsInserted);
++    connect(m_devicesModel, &QAbstractItemModel::rowsAboutToBeRemoved, this, &NWinWaylandBackend::onDeviceRowsAboutToBeRemoved);
+ 
+     findTouchpads();
+ }
+ 
+-KWinWaylandBackend::~KWinWaylandBackend()
++NWinWaylandBackend::~NWinWaylandBackend()
+ {
+     qDeleteAll(m_devices);
+ }
+ 
+-void KWinWaylandBackend::findTouchpads()
++void NWinWaylandBackend::findTouchpads()
+ {
+     for (int i = 0; i < m_devicesModel->rowCount(QModelIndex()); ++i) {
+-        const QString sysName = m_devicesModel->index(i).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(i).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+-        KWinWaylandTouchpad *tp = new KWinWaylandTouchpad(sysName);
++        NWinWaylandTouchpad *tp = new NWinWaylandTouchpad(sysName);
+         if (!tp->load()) {
+             qCCritical(KCM_TOUCHPAD) << "Error on creating touchpad object" << sysName;
+             m_errorString = i18n("Critical error on reading fundamental device infos for touchpad %1.", sysName);
+             return;
+         }
+-        connect(tp, &KWinWaylandTouchpad::needsSaveChanged, this, &KWinWaylandBackend::needsSaveChanged);
++        connect(tp, &NWinWaylandTouchpad::needsSaveChanged, this, &NWinWaylandBackend::needsSaveChanged);
+         m_devices.append(tp);
+         qCDebug(KCM_TOUCHPAD).nospace() << "Touchpad found: " << sysName;
+     }
+@@ -55,40 +55,40 @@ void KWinWaylandBackend::findTouchpads()
+     }
+ }
+ 
+-bool KWinWaylandBackend::save()
++bool NWinWaylandBackend::save()
+ {
+     return std::all_of(m_devices.constBegin(), m_devices.constEnd(), [](LibinputCommon *t) {
+         return t->save();
+     });
+ }
+ 
+-bool KWinWaylandBackend::load()
++bool NWinWaylandBackend::load()
+ {
+     return std::all_of(m_devices.constBegin(), m_devices.constEnd(), [](LibinputCommon *t) {
+         return t->load();
+     });
+ }
+ 
+-bool KWinWaylandBackend::defaults()
++bool NWinWaylandBackend::defaults()
+ {
+     return std::all_of(m_devices.constBegin(), m_devices.constEnd(), [](LibinputCommon *t) {
+         return t->defaults();
+     });
+ }
+ 
+-bool KWinWaylandBackend::isSaveNeeded() const
++bool NWinWaylandBackend::isSaveNeeded() const
+ {
+     return std::any_of(m_devices.constBegin(), m_devices.constEnd(), [](LibinputCommon *t) {
+         return t->isSaveNeeded();
+     });
+ }
+ 
+-void KWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int first, int last)
++void NWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int first, int last)
+ {
+     for (int i = first; i <= last; ++i) {
+-        const QString sysName = m_devicesModel->index(first, 0, parent).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(first, 0, parent).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+-        KWinWaylandTouchpad *tp = new KWinWaylandTouchpad(sysName);
++        NWinWaylandTouchpad *tp = new NWinWaylandTouchpad(sysName);
+         if (!tp->load()) {
+             Q_EMIT deviceAdded(false);
+             return;
+@@ -100,13 +100,13 @@ void KWinWaylandBackend::onDeviceRowsInserted(const QModelIndex &parent, int fir
+     }
+ }
+ 
+-void KWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last)
++void NWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last)
+ {
+     for (int i = first; i <= last; ++i) {
+-        const QString sysName = m_devicesModel->index(first, 0, parent).data(KWinDevices::DevicesModel::SysNameRole).toString();
++        const QString sysName = m_devicesModel->index(first, 0, parent).data(NWinDevices::DevicesModel::SysNameRole).toString();
+ 
+         QList<LibinputCommon *>::const_iterator it = std::find_if(m_devices.constBegin(), m_devices.constEnd(), [&sysName](LibinputCommon *t) {
+-            return static_cast<KWinWaylandTouchpad *>(t)->sysName() == sysName;
++            return static_cast<NWinWaylandTouchpad *>(t)->sysName() == sysName;
+         });
+         if (it == m_devices.cend()) {
+             return;
+@@ -121,4 +121,4 @@ void KWinWaylandBackend::onDeviceRowsAboutToBeRemoved(const QModelIndex &parent,
+     }
+ }
+ 
+-#include "moc_kwinwaylandbackend.cpp"
++#include "moc_nwinwaylandbackend.cpp"
+diff --git a/kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.h b/kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.h
+similarity index 81%
+rename from kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.h
+rename to kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.h
+index 9cb6650..4b081c3 100644
+--- a/kcms/touchpad/backends/kwin_wayland/kwinwaylandbackend.h
++++ b/kcms/touchpad/backends/nwin_wayland/nwinwaylandbackend.h
+@@ -10,18 +10,18 @@
+ 
+ #include <QList>
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ class DevicesModel;
+ }
+ 
+-class KWinWaylandBackend : public TouchpadBackend
++class NWinWaylandBackend : public TouchpadBackend
+ {
+     Q_OBJECT
+ 
+ public:
+-    explicit KWinWaylandBackend(QObject *parent = nullptr);
+-    ~KWinWaylandBackend();
++    explicit NWinWaylandBackend(QObject *parent = nullptr);
++    ~NWinWaylandBackend();
+ 
+     bool save() override;
+     bool load() override;
+@@ -48,7 +48,7 @@ private:
+     void onDeviceRowsInserted(const QModelIndex &parent, int first, int last);
+     void onDeviceRowsAboutToBeRemoved(const QModelIndex &parent, int first, int last);
+ 
+-    KWinDevices::DevicesModel *m_devicesModel;
++    NWinDevices::DevicesModel *m_devicesModel;
+     QList<LibinputCommon *> m_devices;
+ 
+     QString m_errorString = QString();
+diff --git a/kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.cpp b/kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.cpp
+similarity index 92%
+rename from kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.cpp
+rename to kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.cpp
+index f7a54f5..09117cc 100644
+--- a/kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.cpp
++++ b/kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.cpp
+@@ -4,7 +4,7 @@
+     SPDX-License-Identifier: GPL-2.0-or-later
+ */
+ 
+-#include "kwinwaylandtouchpad.h"
++#include "nwinwaylandtouchpad.h"
+ 
+ #include <QDBusConnection>
+ #include <QDBusError>
+@@ -14,23 +14,23 @@
+ 
+ #include "logging.h"
+ 
+-KWinWaylandTouchpad::KWinWaylandTouchpad(const QString &dbusName)
++NWinWaylandTouchpad::NWinWaylandTouchpad(const QString &dbusName)
+     : LibinputCommon()
+     , m_dbusName(dbusName)
+ {
+ }
+ 
+-KWinWaylandTouchpad::~KWinWaylandTouchpad()
++NWinWaylandTouchpad::~NWinWaylandTouchpad()
+ {
+ }
+ 
+-bool KWinWaylandTouchpad::load()
++bool NWinWaylandTouchpad::load()
+ {
+-    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/InputDevice/") + m_dbusName,
++    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
++                                                  QStringLiteral("/org/kde/NWin/InputDevice/") + m_dbusName,
+                                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                   QStringLiteral("GetAll"));
+-    message << QStringLiteral("org.kde.KWin.InputDevice");
++    message << QStringLiteral("org.kde.NWin.InputDevice");
+     QDBusReply<QVariantMap> reply = QDBusConnection::sessionBus().call(message);
+ 
+     if (!reply.isValid()) {
+@@ -112,7 +112,7 @@ bool KWinWaylandTouchpad::load()
+     return success;
+ }
+ 
+-bool KWinWaylandTouchpad::defaults()
++bool NWinWaylandTouchpad::defaults()
+ {
+     m_enabled.set(true);
+     m_leftHanded.set(false);
+@@ -141,7 +141,7 @@ bool KWinWaylandTouchpad::defaults()
+     return true;
+ }
+ 
+-bool KWinWaylandTouchpad::save()
++bool NWinWaylandTouchpad::save()
+ {
+     bool success = true;
+ 
+@@ -170,7 +170,7 @@ bool KWinWaylandTouchpad::save()
+     return success;
+ }
+ 
+-bool KWinWaylandTouchpad::isSaveNeeded() const
++bool NWinWaylandTouchpad::isSaveNeeded() const
+ {
+     // clang-format off
+     return m_enabled.changed() ||
+@@ -197,16 +197,16 @@ bool KWinWaylandTouchpad::isSaveNeeded() const
+ }
+ 
+ template<typename T>
+-bool KWinWaylandTouchpad::valueWriter(const Prop<T> &prop)
++bool NWinWaylandTouchpad::valueWriter(const Prop<T> &prop)
+ {
+     if (!prop.changed()) {
+         return true;
+     }
+-    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+-                                                  QStringLiteral("/org/kde/KWin/InputDevice/") + m_dbusName,
++    auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.NWin"),
++                                                  QStringLiteral("/org/kde/NWin/InputDevice/") + m_dbusName,
+                                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                                   QStringLiteral("Set"));
+-    message << QStringLiteral("org.kde.KWin.InputDevice") << prop.name << QVariant::fromValue(QDBusVariant(prop.val));
++    message << QStringLiteral("org.kde.NWin.InputDevice") << prop.name << QVariant::fromValue(QDBusVariant(prop.val));
+     QDBusReply<void> reply = QDBusConnection::sessionBus().call(message);
+     if (reply.error().isValid()) {
+         qCCritical(KCM_TOUCHPAD) << reply.error().message();
+@@ -216,7 +216,7 @@ bool KWinWaylandTouchpad::valueWriter(const Prop<T> &prop)
+ }
+ 
+ template<typename T>
+-bool KWinWaylandTouchpad::valueLoader(const QVariantMap &properties, Prop<T> &prop)
++bool NWinWaylandTouchpad::valueLoader(const QVariantMap &properties, Prop<T> &prop)
+ {
+     if (const auto variant = properties.value(prop.name); variant.isValid()) {
+         prop.avail = true;
+@@ -230,4 +230,4 @@ bool KWinWaylandTouchpad::valueLoader(const QVariantMap &properties, Prop<T> &pr
+     }
+ }
+ 
+-#include "moc_kwinwaylandtouchpad.cpp"
++#include "moc_nwinwaylandtouchpad.cpp"
+diff --git a/kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.h b/kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.h
+similarity index 96%
+rename from kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.h
+rename to kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.h
+index 79b4227..599b763 100644
+--- a/kcms/touchpad/backends/kwin_wayland/kwinwaylandtouchpad.h
++++ b/kcms/touchpad/backends/nwin_wayland/nwinwaylandtouchpad.h
+@@ -11,15 +11,15 @@
+ 
+ class QDBusInterface;
+ 
+-class KWinWaylandTouchpad : public LibinputCommon
++class NWinWaylandTouchpad : public LibinputCommon
+ {
+     Q_OBJECT
+ 
+     Q_PROPERTY(qreal scrollFactor READ scrollFactor WRITE setScrollFactor NOTIFY scrollFactorChanged)
+ 
+ public:
+-    explicit KWinWaylandTouchpad(const QString &dbusName);
+-    ~KWinWaylandTouchpad() override;
++    explicit NWinWaylandTouchpad(const QString &dbusName);
++    ~NWinWaylandTouchpad() override;
+ 
+     bool load() override;
+     bool defaults() override;
+diff --git a/kcms/touchpad/kded/kded.cpp b/kcms/touchpad/kded/kded.cpp
+index 4a2f538..d35f600 100644
+--- a/kcms/touchpad/kded/kded.cpp
++++ b/kcms/touchpad/kded/kded.cpp
+@@ -25,7 +25,7 @@ void migrateConfig(TouchpadBackend *backend)
+     }
+ 
+ #if BUILD_KCM_TOUCHPAD_X11
+-    // on Wayland, KWin handles the on/off/toggle shortcuts, the kded is not used and X11 settings are not adopted
++    // on Wayland, NWin handles the on/off/toggle shortcuts, the kded is not used and X11 settings are not adopted
+     if (backend->getMode() != TouchpadInputBackendMode::XLibinput) {
+         return;
+     }
+diff --git a/kcms/touchpad/touchpadbackend.cpp b/kcms/touchpad/touchpadbackend.cpp
+index 39796ee..28f344b 100644
+--- a/kcms/touchpad/touchpadbackend.cpp
++++ b/kcms/touchpad/touchpadbackend.cpp
+@@ -7,8 +7,8 @@
+ 
+ #include "touchpadbackend.h"
+ 
+-#if BUILD_KCM_TOUCHPAD_KWIN_WAYLAND
+-#include "backends/kwin_wayland/kwinwaylandbackend.h"
++#if BUILD_KCM_TOUCHPAD_NWIN_WAYLAND
++#include "backends/nwin_wayland/nwinwaylandbackend.h"
+ #endif
+ #if BUILD_KCM_TOUCHPAD_X11
+ #include "backends/x11/xlibbackend.h"
+@@ -38,13 +38,13 @@ TouchpadBackend *TouchpadBackend::implementation()
+         return backend.localData().get();
+     }
+ #endif
+-#if BUILD_KCM_TOUCHPAD_KWIN_WAYLAND
+-    // TODO: test on kwin_wayland specifically? What about possibly other compositors under Wayland?
++#if BUILD_KCM_TOUCHPAD_NWIN_WAYLAND
++    // TODO: test on nwin_wayland specifically? What about possibly other compositors under Wayland?
+     if (KWindowSystem::isPlatformWayland()) {
+-        static QThreadStorage<std::shared_ptr<KWinWaylandBackend>> backend;
++        static QThreadStorage<std::shared_ptr<NWinWaylandBackend>> backend;
+         if (!backend.hasLocalData()) {
+-            qCDebug(KCM_TOUCHPAD) << "Using KWin+Wayland backend";
+-            backend.setLocalData(std::shared_ptr<KWinWaylandBackend>(new KWinWaylandBackend()));
++            qCDebug(KCM_TOUCHPAD) << "Using NWin+Wayland backend";
++            backend.setLocalData(std::shared_ptr<NWinWaylandBackend>(new NWinWaylandBackend()));
+         }
+         return backend.localData().get();
+     }
+diff --git a/kcms/touchpad/touchpadbackend.h b/kcms/touchpad/touchpadbackend.h
+index 638dd35..8c70bcc 100644
+--- a/kcms/touchpad/touchpadbackend.h
++++ b/kcms/touchpad/touchpadbackend.h
+@@ -17,7 +17,7 @@
+ 
+ enum class TouchpadInputBackendMode {
+     Unset = 0,
+-#if BUILD_KCM_TOUCHPAD_KWIN_WAYLAND
++#if BUILD_KCM_TOUCHPAD_NWIN_WAYLAND
+     WaylandLibinput = 1,
+ #endif
+ #if BUILD_KCM_TOUCHPAD_X11
+diff --git a/kcms/touchscreen/CMakeLists.txt b/kcms/touchscreen/CMakeLists.txt
+index 2a41dc8..698a9c2 100644
+--- a/kcms/touchscreen/CMakeLists.txt
++++ b/kcms/touchscreen/CMakeLists.txt
+@@ -28,5 +28,5 @@ target_link_libraries(kcm_touchscreen PRIVATE
+     Qt::Gui
+     Qt::DBus
+     Qt::Qml
+-    kwindevices
++    nwindevices
+ )
+diff --git a/kcms/touchscreen/kcmtouchscreen.cpp b/kcms/touchscreen/kcmtouchscreen.cpp
+index efc2770..904e53a 100644
+--- a/kcms/touchscreen/kcmtouchscreen.cpp
++++ b/kcms/touchscreen/kcmtouchscreen.cpp
+@@ -81,13 +81,13 @@ public:
+ 
+ Touchscreen::Touchscreen(QObject *parent, const KPluginMetaData &metaData)
+     : KQuickManagedConfigModule(parent, metaData)
+-    , m_touchscreensModel(new KWinDevices::DevicesModel(KWinDevices::DevicesModel::Kind::Touch, {}, this))
++    , m_touchscreensModel(new NWinDevices::DevicesModel(NWinDevices::DevicesModel::Kind::Touch, {}, this))
+ {
+     const char *uri = "org.kde.plasma.touchscreen.kcm";
+     qmlRegisterType<OutputsModel>(uri, 1, 0, "OutputsModel");
+-    qmlRegisterUncreatableType<KWinDevices::InputDevice>(uri, 1, 0, "InputDevice", u"Should be fetched from kcm.touchscreensModel"_s);
++    qmlRegisterUncreatableType<NWinDevices::InputDevice>(uri, 1, 0, "InputDevice", u"Should be fetched from kcm.touchscreensModel"_s);
+ 
+-    connect(m_touchscreensModel, &KWinDevices::DevicesModel::needsSaveChanged, this, &Touchscreen::refreshNeedsSave);
++    connect(m_touchscreensModel, &NWinDevices::DevicesModel::needsSaveChanged, this, &Touchscreen::refreshNeedsSave);
+ }
+ 
+ Touchscreen::~Touchscreen() = default;
+@@ -122,7 +122,7 @@ void Touchscreen::defaults()
+     m_touchscreensModel->defaults();
+ }
+ 
+-KWinDevices::DevicesModel *Touchscreen::touchscreensModel() const
++NWinDevices::DevicesModel *Touchscreen::touchscreensModel() const
+ {
+     return m_touchscreensModel;
+ }
+diff --git a/kcms/touchscreen/kcmtouchscreen.h b/kcms/touchscreen/kcmtouchscreen.h
+index f517561..f1b7f04 100644
+--- a/kcms/touchscreen/kcmtouchscreen.h
++++ b/kcms/touchscreen/kcmtouchscreen.h
+@@ -19,7 +19,7 @@
+ class Touchscreen : public KQuickManagedConfigModule
+ {
+     Q_OBJECT
+-    Q_PROPERTY(KWinDevices::DevicesModel *touchscreensModel READ touchscreensModel CONSTANT)
++    Q_PROPERTY(NWinDevices::DevicesModel *touchscreensModel READ touchscreensModel CONSTANT)
+ 
+ public:
+     explicit Touchscreen(QObject *parent, const KPluginMetaData &metaData);
+@@ -31,10 +31,10 @@ public:
+     bool isSaveNeeded() const override;
+     bool isDefaults() const override;
+ 
+-    KWinDevices::DevicesModel *touchscreensModel() const;
++    NWinDevices::DevicesModel *touchscreensModel() const;
+ 
+ private:
+     void refreshNeedsSave();
+ 
+-    KWinDevices::DevicesModel *const m_touchscreensModel;
++    NWinDevices::DevicesModel *const m_touchscreensModel;
+ };
+diff --git a/kcms/touchscreen/touchscreenmoduledata.cpp b/kcms/touchscreen/touchscreenmoduledata.cpp
+index 0a98b04..0c79657 100644
+--- a/kcms/touchscreen/touchscreenmoduledata.cpp
++++ b/kcms/touchscreen/touchscreenmoduledata.cpp
+@@ -10,7 +10,7 @@
+ 
+ TouchscreenModuleData::TouchscreenModuleData(QObject *parent)
+     : KCModuleData(parent)
+-    , m_devices(new KWinDevices::DevicesModel(KWinDevices::DevicesModel::Kind::Touch, {}, this))
++    , m_devices(new NWinDevices::DevicesModel(NWinDevices::DevicesModel::Kind::Touch, {}, this))
+ {
+     connect(m_devices, &QAbstractItemModel::rowsInserted, this, &TouchscreenModuleData::updateRelevance);
+     connect(m_devices, &QAbstractItemModel::rowsRemoved, this, &TouchscreenModuleData::updateRelevance);
+diff --git a/kcms/touchscreen/touchscreenmoduledata.h b/kcms/touchscreen/touchscreenmoduledata.h
+index b83c727..ff26ecc 100644
+--- a/kcms/touchscreen/touchscreenmoduledata.h
++++ b/kcms/touchscreen/touchscreenmoduledata.h
+@@ -8,7 +8,7 @@
+ 
+ #include <KCModuleData>
+ 
+-namespace KWinDevices
++namespace NWinDevices
+ {
+ class DevicesModel;
+ }
+@@ -23,5 +23,5 @@ public:
+ private:
+     void updateRelevance();
+ 
+-    KWinDevices::DevicesModel *m_devices;
++    NWinDevices::DevicesModel *m_devices;
+ };
+diff --git a/kcms/workspaceoptions/CMakeLists.txt b/kcms/workspaceoptions/CMakeLists.txt
+index 0d31428..816d02a 100644
+--- a/kcms/workspaceoptions/CMakeLists.txt
++++ b/kcms/workspaceoptions/CMakeLists.txt
+@@ -6,17 +6,18 @@ kcmutils_add_qml_kcm(kcm_workspace SOURCES workspaceoptions.cpp workspaceoptions
+ kcmutils_generate_module_data(kcm_workspace
+     MODULE_DATA_HEADER workspaceoptionsdata.h
+     MODULE_DATA_CLASS_NAME WorkspaceOptionsData
+-    SETTINGS_HEADERS workspaceoptions_plasmasettings.h workspaceoptions_kdeglobalssettings.h workspaceoptions_kwinsettings.h
+-    SETTINGS_CLASSES WorkspaceOptionsPlasmaSettings WorkspaceOptionsGlobalsSettings WorkspaceOptionsKwinSettings
++    SETTINGS_HEADERS workspaceoptions_plasmasettings.h workspaceoptions_kdeglobalssettings.h workspaceoptions_nwinsettings.h
++    SETTINGS_CLASSES WorkspaceOptionsPlasmaSettings WorkspaceOptionsGlobalsSettings WorkspaceOptionsNwinSettings
+ )
+ 
+ kconfig_add_kcfg_files(kcm_workspace workspaceoptions_kdeglobalssettings.kcfgc GENERATE_MOC)
+ kconfig_add_kcfg_files(kcm_workspace workspaceoptions_plasmasettings.kcfgc GENERATE_MOC)
+-kconfig_add_kcfg_files(kcm_workspace workspaceoptions_kwinsettings.kcfgc GENERATE_MOC)
++kconfig_add_kcfg_files(kcm_workspace workspaceoptions_nwinsettings.kcfgc GENERATE_MOC)
+ 
+ target_link_libraries(kcm_workspace PRIVATE
+     KF6::KCMUtilsQuick
+     KF6::I18n
++    KF6::WindowSystem
+     KF6::ConfigGui
+     Qt::DBus
+     Qt::Qml
+@@ -25,5 +26,5 @@ target_link_libraries(kcm_workspace PRIVATE
+ ########### install files ###############
+ install(FILES workspaceoptions_kdeglobalssettings.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
+ install(FILES workspaceoptions_plasmasettings.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
+-install(FILES workspaceoptions_kwinsettings.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
++install(FILES workspaceoptions_nwinsettings.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
+ 
+diff --git a/kcms/workspaceoptions/ui/main.qml b/kcms/workspaceoptions/ui/main.qml
+index 5d99a02..c3c9906 100644
+--- a/kcms/workspaceoptions/ui/main.qml
++++ b/kcms/workspaceoptions/ui/main.qml
+@@ -192,11 +192,11 @@ KCM.SimpleKCM {
+                 contentItem: QQC2.CheckBox {
+                     id: primarySelectionRadio
+                     text: i18nc("@option:check part of a complete sentence: 'Middle click pastes selected text'", "Pastes selected text")
+-                    checked: kcm.kwinSettings.primarySelection
+-                    onToggled: kcm.kwinSettings.primarySelection = checked
++                    checked: kcm.nwinSettings.primarySelection
++                    onToggled: kcm.nwinSettings.primarySelection = checked
+ 
+                     KCM.SettingStateBinding {
+-                        configObject: kcm.kwinSettings
++                        configObject: kcm.nwinSettings
+                         settingName: "primarySelection"
+                     }
+                 }
+@@ -343,17 +343,17 @@ KCM.SimpleKCM {
+                     id: touchEnabledRadio
+                     text: KWindowSystem.isPlatformWayland ? i18nc("As in: 'Tablet Mode is automatically enabled as needed'", "Automatically enable as needed") : i18nc("As in: 'Tablet Mode is never enabled'", "Never enabled")
+                     Accessible.description: touchModeAlwaysOffRadioButton.Accessible.description
+-                    checked: kcm.kwinSettings.tabletMode === "auto"
++                    checked: kcm.nwinSettings.tabletMode === "auto"
+                     onToggled: {
+                         if (checked) {
+-                            kcm.kwinSettings.tabletMode = "auto"
++                            kcm.nwinSettings.tabletMode = "auto"
+                         }
+                     }
+                     QQC2.ButtonGroup { id: tabletModeBehaviorGroup }
+                     QQC2.ButtonGroup.group: tabletModeBehaviorGroup
+ 
+                     KCM.SettingStateBinding {
+-                        configObject: kcm.kwinSettings
++                        configObject: kcm.nwinSettings
+                         settingName: "tabletMode"
+                     }
+                 }
+@@ -368,16 +368,16 @@ KCM.SimpleKCM {
+                 contentItem: QQC2.RadioButton {
+                     text: i18nc("As in: 'Tablet Mode is always enabled'", "Always enabled")
+                     Accessible.description: touchModeAlwaysOffRadioButton.Accessible.description
+-                    checked: kcm.kwinSettings.tabletMode === "on"
++                    checked: kcm.nwinSettings.tabletMode === "on"
+                     onToggled: {
+                         if (checked) {
+-                            kcm.kwinSettings.tabletMode = "on"
++                            kcm.nwinSettings.tabletMode = "on"
+                         }
+                     }
+                     QQC2.ButtonGroup.group: tabletModeBehaviorGroup
+ 
+                     KCM.SettingStateBinding {
+-                        configObject: kcm.kwinSettings
++                        configObject: kcm.nwinSettings
+                         settingName: "tabletMode"
+                     }
+                 }
+@@ -390,16 +390,16 @@ KCM.SimpleKCM {
+                     id: touchModeAlwaysOffRadioButton
+                     text: i18nc("As in: 'Tablet Mode is never enabled'", "Disabled")
+                     Accessible.description: i18nc("@info:usagetip", "In Tablet Mode, the virtual keyboard will appear when needed.")
+-                    checked: kcm.kwinSettings.tabletMode === "off"
++                    checked: kcm.nwinSettings.tabletMode === "off"
+                     onToggled: {
+                         if (checked) {
+-                            kcm.kwinSettings.tabletMode = "off"
++                            kcm.nwinSettings.tabletMode = "off"
+                         }
+                     }
+                     QQC2.ButtonGroup.group: tabletModeBehaviorGroup
+ 
+                     KCM.SettingStateBinding {
+-                        configObject: kcm.kwinSettings
++                        configObject: kcm.nwinSettings
+                         settingName: "tabletMode"
+                     }
+                 }
+diff --git a/kcms/workspaceoptions/workspaceoptions.cpp b/kcms/workspaceoptions/workspaceoptions.cpp
+index 86dea5a..4f32432 100644
+--- a/kcms/workspaceoptions/workspaceoptions.cpp
++++ b/kcms/workspaceoptions/workspaceoptions.cpp
+@@ -11,6 +11,7 @@
+ 
+ #include <KLocalizedString>
+ #include <KPluginFactory>
++#include <KWindowSystem>
+ 
+ #include <QDBusConnection>
+ #include <QDBusMessage>
+@@ -18,7 +19,7 @@
+ #include <QDBusPendingCall>
+ 
+ #include "workspaceoptions_kdeglobalssettings.h"
+-#include "workspaceoptions_kwinsettings.h"
++#include "workspaceoptions_nwinsettings.h"
+ #include "workspaceoptions_plasmasettings.h"
+ #include "workspaceoptionsdata.h"
+ 
+@@ -29,7 +30,7 @@ KCMWorkspaceOptions::KCMWorkspaceOptions(QObject *parent, const KPluginMetaData
+     , m_data(new WorkspaceOptionsData(this))
+ {
+     qmlRegisterAnonymousType<WorkspaceOptionsPlasmaSettings>("org.kde.plasma.workspaceoptions.kcm", 1);
+-    qmlRegisterAnonymousType<WorkspaceOptionsKwinSettings>("org.kde.plasma.workspaceoptions.kcm", 1);
++    qmlRegisterAnonymousType<WorkspaceOptionsNwinSettings>("org.kde.plasma.workspaceoptions.kcm", 1);
+ 
+     qmlRegisterUncreatableType<WorkspaceOptionsGlobalsSettings>("org.kde.plasma.workspaceoptions.kcm",
+                                                                 1,
+@@ -50,14 +51,14 @@ WorkspaceOptionsPlasmaSettings *KCMWorkspaceOptions::plasmaSettings() const
+     return m_data->workspaceOptionsPlasmaSettings();
+ }
+ 
+-WorkspaceOptionsKwinSettings *KCMWorkspaceOptions::kwinSettings() const
++WorkspaceOptionsNwinSettings *KCMWorkspaceOptions::nwinSettings() const
+ {
+-    return m_data->workspaceOptionsKwinSettings();
++    return m_data->workspaceOptionsNwinSettings();
+ }
+ 
+ void KCMWorkspaceOptions::save()
+ {
+-    const bool primarySelectionSaved = m_data->workspaceOptionsKwinSettings()->findItem(QStringLiteral("primarySelection"))->isSaveNeeded();
++    const bool primarySelectionSaved = m_data->workspaceOptionsNwinSettings()->findItem(QStringLiteral("primarySelection"))->isSaveNeeded();
+     const bool smoothScrollSaved = m_data->workspaceOptionsGlobalsSettings()->findItem(QStringLiteral("smoothScroll"))->isSaveNeeded();
+ 
+     KQuickManagedConfigModule::save();
+@@ -72,7 +73,7 @@ void KCMWorkspaceOptions::save()
+     }
+ 
+     {
+-        QDBusMessage message = QDBusMessage::createSignal(QStringLiteral("/kwinrc"), QStringLiteral("org.kde.kconfig.notify"), QStringLiteral("ConfigChanged"));
++        QDBusMessage message = QDBusMessage::createSignal((KWindowSystem::isPlatformX11() ? QStringLiteral("/kwinrc") : QStringLiteral("/nwinrc")), QStringLiteral("org.kde.kconfig.notify"), QStringLiteral("ConfigChanged"));
+         QHash<QString, QByteArrayList> changes = {
+             {QStringLiteral("Wayland"), {"EnablePrimarySelection"}},
+         };
+diff --git a/kcms/workspaceoptions/workspaceoptions.h b/kcms/workspaceoptions/workspaceoptions.h
+index e459411..cf6ebeb 100644
+--- a/kcms/workspaceoptions/workspaceoptions.h
++++ b/kcms/workspaceoptions/workspaceoptions.h
+@@ -12,14 +12,14 @@
+ class WorkspaceOptionsData;
+ class WorkspaceOptionsGlobalsSettings;
+ class WorkspaceOptionsPlasmaSettings;
+-class WorkspaceOptionsKwinSettings;
++class WorkspaceOptionsNwinSettings;
+ 
+ class KCMWorkspaceOptions : public KQuickManagedConfigModule
+ {
+     Q_OBJECT
+     Q_PROPERTY(WorkspaceOptionsGlobalsSettings *globalsSettings READ globalsSettings CONSTANT)
+     Q_PROPERTY(WorkspaceOptionsPlasmaSettings *plasmaSettings READ plasmaSettings CONSTANT)
+-    Q_PROPERTY(WorkspaceOptionsKwinSettings *kwinSettings READ kwinSettings CONSTANT)
++    Q_PROPERTY(WorkspaceOptionsNwinSettings *nwinSettings READ nwinSettings CONSTANT)
+ 
+ public:
+     KCMWorkspaceOptions(QObject *parent, const KPluginMetaData &metaData);
+@@ -29,7 +29,7 @@ public:
+ 
+     WorkspaceOptionsGlobalsSettings *globalsSettings() const;
+     WorkspaceOptionsPlasmaSettings *plasmaSettings() const;
+-    WorkspaceOptionsKwinSettings *kwinSettings() const;
++    WorkspaceOptionsNwinSettings *nwinSettings() const;
+ 
+ public Q_SLOTS:
+     void save() override;
+diff --git a/kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfgc b/kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfgc
+deleted file mode 100644
+index c29ba42..0000000
+--- a/kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfgc
++++ /dev/null
+@@ -1,7 +0,0 @@
+-File=workspaceoptions_kwinsettings.kcfg
+-ClassName=WorkspaceOptionsKwinSettings
+-Mutators=true
+-DefaultValueGetters=true
+-GenerateProperties=true
+-ParentInConstructor=true
+-Notifiers=true
+diff --git a/kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfg b/kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfg
+similarity index 90%
+rename from kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfg
+rename to kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfg
+index 0a762a7..80d0f1e 100644
+--- a/kcms/workspaceoptions/workspaceoptions_kwinsettings.kcfg
++++ b/kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfg
+@@ -3,7 +3,8 @@
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+-  <kcfgfile name="kwinrc" />
++  <include>"../compositorconfig.h"</include>
++  <kcfgfile name="nwinrc" />
+   <group name="Input">
+     <entry name="tabletMode" key="TabletMode" type="String">
+       <label>Automatically switch to touch-optimized mode</label>
+diff --git a/kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfgc b/kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfgc
+new file mode 100644
+index 0000000..b5e10dc
+--- /dev/null
++++ b/kcms/workspaceoptions/workspaceoptions_nwinsettings.kcfgc
+@@ -0,0 +1,8 @@
++File=workspaceoptions_nwinsettings.kcfg
++ClassName=WorkspaceOptionsNwinSettings
++Inherits=CompositorConfigSkeleton
++Mutators=true
++DefaultValueGetters=true
++GenerateProperties=true
++ParentInConstructor=true
++Notifiers=true
+diff --git a/runners/CMakeLists.txt b/runners/CMakeLists.txt
+index 7810670..8cf317a 100644
+--- a/runners/CMakeLists.txt
++++ b/runners/CMakeLists.txt
+@@ -1,4 +1,4 @@
+ add_definitions(-DKRUNNER_DISABLE_DEPRECATED_BEFORE_AND_AT=0x055b00)
+ add_subdirectory(plasma-desktop)
+ add_subdirectory(keys)
+-add_subdirectory(kwin)
++add_subdirectory(nwin)
+diff --git a/runners/kwin/kwin-runner.cpp b/runners/kwin/kwin-runner.cpp
+deleted file mode 100644
+index 7b0bd26..0000000
+--- a/runners/kwin/kwin-runner.cpp
++++ /dev/null
+@@ -1,78 +0,0 @@
+-/*
+-    SPDX-FileCopyrightText: 2009 Aaron Seigo <aseigo@kde.org>
+-    SPDX-FileCopyrightText: 2016 Martin Gräßlin <mgraesslin@kde.org>
+-
+-    SPDX-License-Identifier: LGPL-2.0-only
+-*/
+-
+-#include "kwin-runner.h"
+-
+-#include <QDBusConnection>
+-#include <QDBusConnectionInterface>
+-#include <QDBusServiceWatcher>
+-
+-#include <KLocalizedString>
+-
+-K_PLUGIN_CLASS_WITH_JSON(KWinRunner, "plasma-runner-kwin.json")
+-
+-static const QString s_kwinService = QStringLiteral("org.kde.KWin");
+-static const QString s_keyword = QStringLiteral("kwin debug console");
+-static const QStringList s_keywords = {QStringLiteral("kwin"), QStringLiteral("debug"), QStringLiteral("console")};
+-
+-KWinRunner::KWinRunner(QObject *parent, const KPluginMetaData &metaData)
+-    : AbstractRunner(parent, metaData)
+-{
+-    QDBusServiceWatcher *watcher = new QDBusServiceWatcher(s_kwinService, QDBusConnection::sessionBus(), QDBusServiceWatcher::WatchForOwnerChange, this);
+-    connect(watcher, &QDBusServiceWatcher::serviceOwnerChanged, this, &KWinRunner::checkAvailability);
+-    checkAvailability(QString(), QString(), QString());
+-}
+-
+-void KWinRunner::match(RunnerContext &context)
+-{
+-    const bool containsAnyKeyword = std::any_of(s_keywords.begin(), s_keywords.end(), [&context](const QString &keyword) {
+-        return context.query().contains(keyword, Qt::CaseInsensitive);
+-    });
+-    if (m_enabled && containsAnyKeyword) {
+-        QueryMatch match(this);
+-        match.setId(QStringLiteral("kwin"));
+-        if (context.query().compare(s_keyword, Qt::CaseInsensitive) == 0) {
+-            match.setCategoryRelevance(QueryMatch::CategoryRelevance::Highest);
+-        }
+-        match.setIconName(QStringLiteral("kwin"));
+-        match.setText(i18n("Open KWin debug console"));
+-        match.setRelevance(1.0);
+-        context.addMatch(match);
+-    }
+-}
+-
+-void KWinRunner::run(const RunnerContext & /*context*/, const QueryMatch & /*match*/)
+-{
+-    if (m_enabled) {
+-        QDBusMessage message = QDBusMessage::createMethodCall(s_kwinService, QStringLiteral("/KWin"), s_kwinService, QStringLiteral("showDebugConsole"));
+-        QDBusConnection::sessionBus().asyncCall(message);
+-    }
+-}
+-
+-void KWinRunner::checkAvailability(const QString &name, const QString & /*oldOwner*/, const QString &newOwner)
+-{
+-    bool enabled = false;
+-    if (name.isEmpty()) {
+-        enabled = QDBusConnection::sessionBus().interface()->isServiceRegistered(s_kwinService).value();
+-    } else {
+-        enabled = !newOwner.isEmpty();
+-    }
+-
+-    if (m_enabled != enabled) {
+-        m_enabled = enabled;
+-
+-        if (m_enabled) {
+-            RunnerSyntax(s_keywords, i18n("Opens the KWin (Plasma Window Manager) debug console."));
+-        } else {
+-            setSyntaxes(QList<RunnerSyntax>());
+-        }
+-    }
+-}
+-
+-#include "kwin-runner.moc"
+-
+-#include "moc_kwin-runner.cpp"
+diff --git a/runners/kwin/plasma-runner-kwin.json b/runners/kwin/plasma-runner-kwin.json
+deleted file mode 100644
+index c41e7d9..0000000
+--- a/runners/kwin/plasma-runner-kwin.json
++++ /dev/null
+@@ -1,173 +0,0 @@
+-{
+-    "KPlugin": {
+-        "Authors": [
+-            {
+-                "Email": "plasma-devel@kde.org",
+-                "Name": "Plasma Team",
+-                "Name[ar]": "فريق بلازما",
+-                "Name[az]": "Plasma komandası",
+-                "Name[be]": "Каманда Plasma",
+-                "Name[bg]": "Екипът на Plasma",
+-                "Name[ca@valencia]": "L'equip de Plasma",
+-                "Name[ca]": "L'equip del Plasma",
+-                "Name[cs]": "Team Plasma",
+-                "Name[da]": "Plasma-udviklingsholdet",
+-                "Name[de]": "Plasma-Team",
+-                "Name[el]": "Ομάδα Plasma",
+-                "Name[en_GB]": "Plasma Team",
+-                "Name[eo]": "Teamo de Plasma",
+-                "Name[es]": "El equipo de Plasma",
+-                "Name[et]": "Plasma meeskond",
+-                "Name[eu]": "Plasma taldea",
+-                "Name[fi]": "Plasma-työryhmä",
+-                "Name[fr]": "L'équipe de Plasma",
+-                "Name[ga]": "Foireann Plasma",
+-                "Name[gl]": "Equipo de Plasma",
+-                "Name[he]": "צוות פלזמה",
+-                "Name[hu]": "A Plasma fejlesztői",
+-                "Name[ia]": "Equipa de Plasma",
+-                "Name[id]": "Tim Plasma",
+-                "Name[ie]": "Li equipe de Plasma",
+-                "Name[is]": "Plasma-þróunarhópurinn",
+-                "Name[it]": "La squadra di Plasma",
+-                "Name[ja]": "Plasma チーム",
+-                "Name[ka]": "Plasma-ის გუნდი",
+-                "Name[ko]": "Plasma 팀",
+-                "Name[lt]": "Plasma komanda",
+-                "Name[lv]": "„Plasma“ komanda",
+-                "Name[nb]": "Utviklingslaget for Plasma",
+-                "Name[nl]": "Team van Plasma",
+-                "Name[nn]": "Utviklingslaget for Plasma",
+-                "Name[pa]": "ਪਲਾਜ਼ਮਾ ਟੀਮ",
+-                "Name[pl]": "Zespół Plazmy",
+-                "Name[pt]": "Equipa do Plasma",
+-                "Name[pt_BR]": "Equipe do Plasma",
+-                "Name[ro]": "Echipa Plasma",
+-                "Name[ru]": "Команда разработчиков Plasma",
+-                "Name[sa]": "प्लाज्मा दल",
+-                "Name[sk]": "Tím Plasma",
+-                "Name[sl]": "Ekipa Plasme",
+-                "Name[sv]": "Plasma-gruppen",
+-                "Name[ta]": "பிளாஸ்மா குழு",
+-                "Name[tr]": "Plasma Takımı",
+-                "Name[ug]": "Plasma قوشۇنى",
+-                "Name[uk]": "Команда розробників Плазми",
+-                "Name[vi]": "Đội Plasma",
+-                "Name[zh_CN]": "Plasma 开发团队",
+-                "Name[zh_TW]": "Plasma 團隊"
+-            }
+-        ],
+-        "Description": "Interact with the Plasma Compositor",
+-        "Description[ar]": "يتفاعل مع صدفة سطح مكتب بلازما",
+-        "Description[ast]": "Interactúa col compositor de Plasma",
+-        "Description[az]": "Plasma üz qabığı ilə qarşılıqlı əlaqə vasitəsi",
+-        "Description[be]": "Узаемадзеянне са сродкам кампазітынгу Plasma",
+-        "Description[bg]": "Взаимодейства с композитора на Plasma",
+-        "Description[ca@valencia]": "Interactua amb el compositor de Plasma",
+-        "Description[ca]": "Interactua amb el compositor del Plasma",
+-        "Description[cs]": "Interakce s kompozitorem pracovní plochy Plasma",
+-        "Description[da]": "Interaktion med Plasmas compositor",
+-        "Description[de]": "Interaktion mit dem Plasma-Compositor",
+-        "Description[el]": "Αλληλεπίδραση με τον συνθέτη Plasma",
+-        "Description[en_GB]": "Interact with the Plasma Compositor",
+-        "Description[eo]": "Interagi kun la Plasma Kunmetilo",
+-        "Description[es]": "Interactuar con el compositor de Plasma",
+-        "Description[et]": "Suhtlus Plasma komposiitoriga",
+-        "Description[eu]": "Plasma-Konposatzailearekin elkarreragin",
+-        "Description[fi]": "Ole vuorovaikutuksessa Plasma-koostimen kanssa",
+-        "Description[fr]": "Interagir avec le compositeur de Plasma",
+-        "Description[ga]": "Idirghníomhaigh leis an gComhdhéanamh Plasma",
+-        "Description[gl]": "Interactúa co compositor de Plasma.",
+-        "Description[he]": "תפעול המנהל החלונאי של פלזמה",
+-        "Description[hu]": "Interakció a Plasma kompozitorral",
+-        "Description[ia]": "Interage  con le Compositor de Plasma",
+-        "Description[id]": "Berinteraksi dengan Kompositor Plasma",
+-        "Description[is]": "Gagnvirkni með Plasma-samsetningu",
+-        "Description[it]": "Interagisci con il compositore di Plasma",
+-        "Description[ja]": "Plasma コンポジタと対話",
+-        "Description[ka]": "Plasma-ის კომპოზიტორთან კავშირი",
+-        "Description[ko]": "Plasma 컴포지터와 상호 작용",
+-        "Description[lt]": "Sąveikauti su Plasma kompozitoriumi",
+-        "Description[lv]": "Mijiedarboties ar „Plasma“ kompozitoru",
+-        "Description[nb]": "Bruk Plasma-sammensetteren",
+-        "Description[nl]": "Interactie met de Plasma Compositor",
+-        "Description[nn]": "Bruk Plasma-samansetjaren",
+-        "Description[pa]": "ਪਲਾਜ਼ਮਾ ਕੰਪੋਜ਼ਟਰ ਨਾਲ ਤਾਲਮੇਲ",
+-        "Description[pl]": "Współdziałanie z kompozytorem Plazmy",
+-        "Description[pt]": "Interagir com o compositor do Plasma",
+-        "Description[pt_BR]": "Interage com o compositor do Plasma",
+-        "Description[ro]": "Interacționează cu compozitorul Plasma",
+-        "Description[ru]": "Инструмент взаимодействия с диспетчером окон в Plasma",
+-        "Description[sa]": "प्लाज्मा कम्पोजिटर इत्यनेन सह अन्तरक्रियां कुर्वन्तु",
+-        "Description[sk]": "Interakcia s kompozítorom Plasma",
+-        "Description[sl]": "Upravljajte z upravljalnikom skladnje Plasma",
+-        "Description[sv]": "Interaktion med Plasma sammansättning",
+-        "Description[ta]": "பிளாஸ்மாவின் சாளர மேலாளியை கட்டுப்படுத்துங்கள்",
+-        "Description[tr]": "Plasma Bileşikleştiricisi ile etkileşimde bulunun",
+-        "Description[ug]": "Plasma بىرىكتۈرگۈچ بىلەن تەسىرلىشىدۇ",
+-        "Description[uk]": "Взаємодія із засобом композиції Плазми",
+-        "Description[vi]": "Tương tác với Trình kết hợp Plasma",
+-        "Description[zh_CN]": "与 Plasma 显示合成器进行交互",
+-        "Description[zh_TW]": "與 Plasma 合成器互動",
+-        "EnabledByDefault": true,
+-        "Icon": "kwin",
+-        "License": "LGPLv2",
+-        "Name": "KWin",
+-        "Name[ar]": "ك.وين",
+-        "Name[ast]": "KWin",
+-        "Name[az]": "KWin",
+-        "Name[be]": "KWin",
+-        "Name[bg]": "KWin",
+-        "Name[ca@valencia]": "KWin",
+-        "Name[ca]": "KWin",
+-        "Name[cs]": "KWin",
+-        "Name[da]": "KWin",
+-        "Name[de]": "KWin",
+-        "Name[el]": "KWin",
+-        "Name[en_GB]": "KWin",
+-        "Name[eo]": "KWin",
+-        "Name[es]": "KWin",
+-        "Name[et]": "KWin",
+-        "Name[eu]": "KWin",
+-        "Name[fi]": "KWin",
+-        "Name[fr]": "KWin",
+-        "Name[ga]": "KWin",
+-        "Name[gl]": "KWin",
+-        "Name[he]": "מנהל חלונות KWin",
+-        "Name[hu]": "KWin",
+-        "Name[ia]": "KWin",
+-        "Name[id]": "KWin",
+-        "Name[ie]": "KWin",
+-        "Name[is]": "KWin",
+-        "Name[it]": "KWin",
+-        "Name[ja]": "KWin",
+-        "Name[ka]": "KWin",
+-        "Name[ko]": "KWin",
+-        "Name[lt]": "KWin",
+-        "Name[lv]": "KWin",
+-        "Name[nb]": "KWin",
+-        "Name[nl]": "KWin",
+-        "Name[nn]": "KWin",
+-        "Name[pa]": "KWin",
+-        "Name[pl]": "KWin",
+-        "Name[pt]": "KWin",
+-        "Name[pt_BR]": "KWin",
+-        "Name[ro]": "KWin",
+-        "Name[ru]": "KWin",
+-        "Name[sa]": "केविन्",
+-        "Name[sk]": "KWin",
+-        "Name[sl]": "KWin",
+-        "Name[sr@ijekavian]": "К‑вин",
+-        "Name[sr@ijekavianlatin]": "KWin",
+-        "Name[sr@latin]": "KWin",
+-        "Name[sr]": "К‑вин",
+-        "Name[sv]": "Kwin",
+-        "Name[ta]": "கேவின்",
+-        "Name[tr]": "KWin",
+-        "Name[ug]": "KWin",
+-        "Name[uk]": "KWin",
+-        "Name[vi]": "KWin",
+-        "Name[zh_CN]": "KWin",
+-        "Name[zh_TW]": "KWin"
+-    }
+-}
+diff --git a/runners/kwin/CMakeLists.txt b/runners/nwin/CMakeLists.txt
+similarity index 63%
+rename from runners/kwin/CMakeLists.txt
+rename to runners/nwin/CMakeLists.txt
+index f42c478..b7f211f 100644
+--- a/runners/kwin/CMakeLists.txt
++++ b/runners/nwin/CMakeLists.txt
+@@ -1,8 +1,9 @@
+ add_definitions(-DTRANSLATION_DOMAIN="plasma_runner_kwin")
+ 
+-kcoreaddons_add_plugin(krunner_kwin SOURCES kwin-runner.cpp kwin-runner.h INSTALL_NAMESPACE kf6/krunner)
+-target_link_libraries(krunner_kwin
++kcoreaddons_add_plugin(krunner_nwin SOURCES nwin-runner.cpp nwin-runner.h INSTALL_NAMESPACE kf6/krunner)
++target_link_libraries(krunner_nwin
+                         Qt::DBus
+                         KF6::KIOCore
+                         KF6::I18n
++                        KF6::WindowSystem
+                         KF6::Runner)
+diff --git a/runners/kwin/Messages.sh b/runners/nwin/Messages.sh
+old mode 100755
+new mode 100644
+similarity index 100%
+rename from runners/kwin/Messages.sh
+rename to runners/nwin/Messages.sh
+diff --git a/runners/nwin/nwin-runner.cpp b/runners/nwin/nwin-runner.cpp
+new file mode 100644
+index 0000000..a3ce504
+--- /dev/null
++++ b/runners/nwin/nwin-runner.cpp
+@@ -0,0 +1,79 @@
++/*
++    SPDX-FileCopyrightText: 2009 Aaron Seigo <aseigo@kde.org>
++    SPDX-FileCopyrightText: 2016 Martin Gräßlin <mgraesslin@kde.org>
++
++    SPDX-License-Identifier: LGPL-2.0-only
++*/
++
++#include "nwin-runner.h"
++
++#include <QDBusConnection>
++#include <QDBusConnectionInterface>
++#include <QDBusServiceWatcher>
++
++#include <KLocalizedString>
++#include <KWindowSystem>
++
++K_PLUGIN_CLASS_WITH_JSON(NWinRunner, "plasma-runner-nwin.json")
++
++static const QString s_compositorService = KWindowSystem::isPlatformX11() ? QStringLiteral("org.kde.KWin") : QStringLiteral("org.kde.NWin");
++static const QString s_keyword = KWindowSystem::isPlatformX11() ? QStringLiteral("kwin debug console") : QStringLiteral("nwin debug console");
++static const QStringList s_keywords = {KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin"), QStringLiteral("debug"), QStringLiteral("console")};
++
++NWinRunner::NWinRunner(QObject *parent, const KPluginMetaData &metaData)
++    : AbstractRunner(parent, metaData)
++{
++    QDBusServiceWatcher *watcher = new QDBusServiceWatcher(s_compositorService, QDBusConnection::sessionBus(), QDBusServiceWatcher::WatchForOwnerChange, this);
++    connect(watcher, &QDBusServiceWatcher::serviceOwnerChanged, this, &NWinRunner::checkAvailability);
++    checkAvailability(QString(), QString(), QString());
++}
++
++void NWinRunner::match(RunnerContext &context)
++{
++    const bool containsAnyKeyword = std::any_of(s_keywords.begin(), s_keywords.end(), [&context](const QString &keyword) {
++        return context.query().contains(keyword, Qt::CaseInsensitive);
++    });
++    if (m_enabled && containsAnyKeyword) {
++        QueryMatch match(this);
++        match.setId(KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin"));
++        if (context.query().compare(s_keyword, Qt::CaseInsensitive) == 0) {
++            match.setCategoryRelevance(QueryMatch::CategoryRelevance::Highest);
++        }
++        match.setIconName(KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin"));
++        match.setText((KWindowSystem::isPlatformX11() ? i18n("Open KWin debug console") : i18n("Open NWin debug console")));
++        match.setRelevance(1.0);
++        context.addMatch(match);
++    }
++}
++
++void NWinRunner::run(const RunnerContext & /*context*/, const QueryMatch & /*match*/)
++{
++    if (m_enabled) {
++        QDBusMessage message = QDBusMessage::createMethodCall(s_compositorService, (KWindowSystem::isPlatformX11() ? QStringLiteral("/KWin") : QStringLiteral("/NWin")), s_compositorService, QStringLiteral("showDebugConsole"));
++        QDBusConnection::sessionBus().asyncCall(message);
++    }
++}
++
++void NWinRunner::checkAvailability(const QString &name, const QString & /*oldOwner*/, const QString &newOwner)
++{
++    bool enabled = false;
++    if (name.isEmpty()) {
++        enabled = QDBusConnection::sessionBus().interface()->isServiceRegistered(s_compositorService).value();
++    } else {
++        enabled = !newOwner.isEmpty();
++    }
++
++    if (m_enabled != enabled) {
++        m_enabled = enabled;
++
++        if (m_enabled) {
++            RunnerSyntax(s_keywords, (KWindowSystem::isPlatformX11() ? i18n("Opens the KWin (Plasma Window Manager) debug console.") : i18n("Opens the NWin (Plasma Window Manager) debug console.")));
++        } else {
++            setSyntaxes(QList<RunnerSyntax>());
++        }
++    }
++}
++
++#include "nwin-runner.moc"
++
++#include "moc_nwin-runner.cpp"
+diff --git a/runners/kwin/kwin-runner.h b/runners/nwin/nwin-runner.h
+similarity index 84%
+rename from runners/kwin/kwin-runner.h
+rename to runners/nwin/nwin-runner.h
+index 5db198e..7d96010 100644
+--- a/runners/kwin/kwin-runner.h
++++ b/runners/nwin/nwin-runner.h
+@@ -11,12 +11,12 @@
+ 
+ using namespace KRunner;
+ 
+-class KWinRunner : public AbstractRunner
++class NWinRunner : public AbstractRunner
+ {
+     Q_OBJECT
+ 
+ public:
+-    explicit KWinRunner(QObject *parent, const KPluginMetaData &metaData);
++    explicit NWinRunner(QObject *parent, const KPluginMetaData &metaData);
+ 
+     void match(RunnerContext &context) override;
+     void run(const RunnerContext &context, const QueryMatch &action) override;
+diff --git a/runners/nwin/plasma-runner-nwin.json b/runners/nwin/plasma-runner-nwin.json
+new file mode 100644
+index 0000000..b763a70
+--- /dev/null
++++ b/runners/nwin/plasma-runner-nwin.json
+@@ -0,0 +1,173 @@
++{
++    "KPlugin": {
++        "Authors": [
++            {
++                "Email": "plasma-devel@kde.org",
++                "Name": "NWin",
++                "Name[ar]": "NWin",
++                "Name[az]": "NWin",
++                "Name[be]": "NWin",
++                "Name[bg]": "NWin",
++                "Name[ca@valencia]": "NWin",
++                "Name[ca]": "NWin",
++                "Name[cs]": "NWin",
++                "Name[da]": "NWin",
++                "Name[de]": "NWin",
++                "Name[el]": "NWin",
++                "Name[en_GB]": "NWin",
++                "Name[eo]": "NWin",
++                "Name[es]": "NWin",
++                "Name[et]": "NWin",
++                "Name[eu]": "NWin",
++                "Name[fi]": "NWin",
++                "Name[fr]": "NWin",
++                "Name[ga]": "NWin",
++                "Name[gl]": "NWin",
++                "Name[he]": "NWin",
++                "Name[hu]": "NWin",
++                "Name[ia]": "NWin",
++                "Name[id]": "NWin",
++                "Name[ie]": "NWin",
++                "Name[is]": "NWin",
++                "Name[it]": "NWin",
++                "Name[ja]": "NWin",
++                "Name[ka]": "NWin",
++                "Name[ko]": "NWin",
++                "Name[lt]": "NWin",
++                "Name[lv]": "NWin",
++                "Name[nb]": "NWin",
++                "Name[nl]": "NWin",
++                "Name[nn]": "NWin",
++                "Name[pa]": "NWin",
++                "Name[pl]": "NWin",
++                "Name[pt]": "NWin",
++                "Name[pt_BR]": "NWin",
++                "Name[ro]": "NWin",
++                "Name[ru]": "NWin",
++                "Name[sa]": "NWin",
++                "Name[sk]": "NWin",
++                "Name[sl]": "NWin",
++                "Name[sv]": "NWin",
++                "Name[ta]": "NWin",
++                "Name[tr]": "NWin",
++                "Name[ug]": "NWin",
++                "Name[uk]": "NWin",
++                "Name[vi]": "NWin",
++                "Name[zh_CN]": "NWin",
++                "Name[zh_TW]": "NWin"
++            }
++        ],
++        "Description": "Interact with the Plasma Compositor",
++        "Description[ar]": "يتفاعل مع صدفة سطح مكتب بلازما",
++        "Description[ast]": "Interactúa col compositor de Plasma",
++        "Description[az]": "Plasma üz qabığı ilə qarşılıqlı əlaqə vasitəsi",
++        "Description[be]": "Узаемадзеянне са сродкам кампазітынгу Plasma",
++        "Description[bg]": "Взаимодейства с композитора на Plasma",
++        "Description[ca@valencia]": "Interactua amb el compositor de Plasma",
++        "Description[ca]": "Interactua amb el compositor del Plasma",
++        "Description[cs]": "Interakce s kompozitorem pracovní plochy Plasma",
++        "Description[da]": "Interaktion med Plasmas compositor",
++        "Description[de]": "Interaktion mit dem Plasma-Compositor",
++        "Description[el]": "Αλληλεπίδραση με τον συνθέτη Plasma",
++        "Description[en_GB]": "Interact with the Plasma Compositor",
++        "Description[eo]": "Interagi kun la Plasma Kunmetilo",
++        "Description[es]": "Interactuar con el compositor de Plasma",
++        "Description[et]": "Suhtlus Plasma komposiitoriga",
++        "Description[eu]": "Plasma-Konposatzailearekin elkarreragin",
++        "Description[fi]": "Ole vuorovaikutuksessa Plasma-koostimen kanssa",
++        "Description[fr]": "Interagir avec le compositeur de Plasma",
++        "Description[ga]": "Idirghníomhaigh leis an gComhdhéanamh Plasma",
++        "Description[gl]": "Interactúa co compositor de Plasma.",
++        "Description[he]": "תפעול המנהל החלונאי של פלזמה",
++        "Description[hu]": "Interakció a Plasma kompozitorral",
++        "Description[ia]": "Interage  con le Compositor de Plasma",
++        "Description[id]": "Berinteraksi dengan Kompositor Plasma",
++        "Description[is]": "Gagnvirkni með Plasma-samsetningu",
++        "Description[it]": "Interagisci con il compositore di Plasma",
++        "Description[ja]": "Plasma コンポジタと対話",
++        "Description[ka]": "Plasma-ის კომპოზიტორთან კავშირი",
++        "Description[ko]": "Plasma 컴포지터와 상호 작용",
++        "Description[lt]": "Sąveikauti su Plasma kompozitoriumi",
++        "Description[lv]": "Mijiedarboties ar „Plasma“ kompozitoru",
++        "Description[nb]": "Bruk Plasma-sammensetteren",
++        "Description[nl]": "Interactie met de Plasma Compositor",
++        "Description[nn]": "Bruk Plasma-samansetjaren",
++        "Description[pa]": "ਪਲਾਜ਼ਮਾ ਕੰਪੋਜ਼ਟਰ ਨਾਲ ਤਾਲਮੇਲ",
++        "Description[pl]": "Współdziałanie z kompozytorem Plazmy",
++        "Description[pt]": "Interagir com o compositor do Plasma",
++        "Description[pt_BR]": "Interage com o compositor do Plasma",
++        "Description[ro]": "Interacționează cu compozitorul Plasma",
++        "Description[ru]": "Инструмент взаимодействия с диспетчером окон в Plasma",
++        "Description[sa]": "प्लाज्मा कम्पोजिटर इत्यनेन सह अन्तरक्रियां कुर्वन्तु",
++        "Description[sk]": "Interakcia s kompozítorom Plasma",
++        "Description[sl]": "Upravljajte z upravljalnikom skladnje Plasma",
++        "Description[sv]": "Interaktion med Plasma sammansättning",
++        "Description[ta]": "பிளாஸ்மாவின் சாளர மேலாளியை கட்டுப்படுத்துங்கள்",
++        "Description[tr]": "Plasma Bileşikleştiricisi ile etkileşimde bulunun",
++        "Description[ug]": "Plasma بىرىكتۈرگۈچ بىلەن تەسىرلىشىدۇ",
++        "Description[uk]": "Взаємодія із засобом композиції Плазми",
++        "Description[vi]": "Tương tác với Trình kết hợp Plasma",
++        "Description[zh_CN]": "与 Plasma 显示合成器进行交互",
++        "Description[zh_TW]": "與 Plasma 合成器互動",
++        "EnabledByDefault": true,
++        "Icon": "nwin",
++        "License": "LGPLv2",
++        "Name": "NWin",
++        "Name[ar]": "NWin",
++        "Name[ast]": "NWin",
++        "Name[az]": "NWin",
++        "Name[be]": "NWin",
++        "Name[bg]": "NWin",
++        "Name[ca@valencia]": "NWin",
++        "Name[ca]": "NWin",
++        "Name[cs]": "NWin",
++        "Name[da]": "NWin",
++        "Name[de]": "NWin",
++        "Name[el]": "NWin",
++        "Name[en_GB]": "NWin",
++        "Name[eo]": "NWin",
++        "Name[es]": "NWin",
++        "Name[et]": "NWin",
++        "Name[eu]": "NWin",
++        "Name[fi]": "NWin",
++        "Name[fr]": "NWin",
++        "Name[ga]": "NWin",
++        "Name[gl]": "NWin",
++        "Name[he]": "NWin",
++        "Name[hu]": "NWin",
++        "Name[ia]": "NWin",
++        "Name[id]": "NWin",
++        "Name[ie]": "NWin",
++        "Name[is]": "NWin",
++        "Name[it]": "NWin",
++        "Name[ja]": "NWin",
++        "Name[ka]": "NWin",
++        "Name[ko]": "NWin",
++        "Name[lt]": "NWin",
++        "Name[lv]": "NWin",
++        "Name[nb]": "NWin",
++        "Name[nl]": "NWin",
++        "Name[nn]": "NWin",
++        "Name[pa]": "NWin",
++        "Name[pl]": "NWin",
++        "Name[pt]": "NWin",
++        "Name[pt_BR]": "NWin",
++        "Name[ro]": "NWin",
++        "Name[ru]": "NWin",
++        "Name[sa]": "NWin",
++        "Name[sk]": "NWin",
++        "Name[sl]": "NWin",
++        "Name[sr@ijekavian]": "NWin",
++        "Name[sr@ijekavianlatin]": "NWin",
++        "Name[sr@latin]": "NWin",
++        "Name[sr]": "NWin",
++        "Name[sv]": "NWin",
++        "Name[ta]": "NWin",
++        "Name[tr]": "NWin",
++        "Name[ug]": "NWin",
++        "Name[uk]": "NWin",
++        "Name[vi]": "NWin",
++        "Name[zh_CN]": "NWin",
++        "Name[zh_TW]": "NWin"
++    }
++}
+diff --git a/runners/plasma-desktop/CMakeLists.txt b/runners/plasma-desktop/CMakeLists.txt
+index b9fdf60..35697a6 100644
+--- a/runners/plasma-desktop/CMakeLists.txt
++++ b/runners/plasma-desktop/CMakeLists.txt
+@@ -5,5 +5,6 @@ target_link_libraries(krunner_plasma-desktop
+                         Qt::DBus
+                         KF6::KIOCore
+                         KF6::I18n
++                        KF6::WindowSystem
+                         KF6::KIOGui
+                         KF6::Runner)
+diff --git a/runners/plasma-desktop/plasma-desktop-runner.cpp b/runners/plasma-desktop/plasma-desktop-runner.cpp
+index 0dacb30..2230a8e 100644
+--- a/runners/plasma-desktop/plasma-desktop-runner.cpp
++++ b/runners/plasma-desktop/plasma-desktop-runner.cpp
+@@ -6,6 +6,8 @@
+ 
+ #include "plasma-desktop-runner.h"
+ 
++#include <KWindowSystem>
++
+ #include <KIO/CommandLauncherJob>
+ #include <QDBusConnection>
+ #include <QDBusConnectionInterface>
+@@ -22,14 +24,14 @@ static const QString s_plasmaService = QLatin1String("org.kde.plasmashell");
+ PlasmaDesktopRunner::PlasmaDesktopRunner(QObject *parent, const KPluginMetaData &metaData)
+     : AbstractRunner(parent, metaData)
+     , m_desktopConsoleKeyword(i18nc("Note this is a KRunner keyword", "desktop console"))
+-    , m_kwinConsoleKeyword(i18nc("Note this is a KRunner keyword", "wm console"))
++    , m_compositorConsoleKeyword(i18nc("Note this is a KRunner keyword", "wm console"))
+ {
+     setObjectName(QLatin1String("Plasma-Desktop"));
+     addSyntax(m_desktopConsoleKeyword, i18n("Opens the Plasma desktop interactive console with a file path to a script on disk."));
+     addSyntax(i18nc("Note this is a KRunner keyword", "desktop console :q:"),
+               i18n("Opens the Plasma desktop interactive console with a file path to a script on disk."));
+-    addSyntax(m_kwinConsoleKeyword, i18n("Opens the KWin interactive console with a file path to a script on disk."));
+-    addSyntax(i18nc("Note this is a KRunner keyword", "wm console :q:"), i18n("Opens the KWin interactive console with a file path to a script on disk."));
++    addSyntax(m_compositorConsoleKeyword, (KWindowSystem::isPlatformX11() ? i18n("Opens the KWin interactive console with a file path to a script on disk.") : i18n("Opens the NWin interactive console with a file path to a script on disk.")));
++    addSyntax(i18nc("Note this is a KRunner keyword", "wm console :q:"), (KWindowSystem::isPlatformX11() ? i18n("Opens the KWin interactive console with a file path to a script on disk.") : i18n("Opens the NWin interactive console with a file path to a script on disk.")));
+ }
+ 
+ void PlasmaDesktopRunner::match(RunnerContext &context)
+@@ -43,12 +45,12 @@ void PlasmaDesktopRunner::match(RunnerContext &context)
+         match.setRelevance(1.0);
+         context.addMatch(match);
+     }
+-    if (context.query().startsWith(m_kwinConsoleKeyword, Qt::CaseInsensitive)) {
++    if (context.query().startsWith(m_compositorConsoleKeyword, Qt::CaseInsensitive)) {
+         QueryMatch match(this);
+         match.setId(QStringLiteral("plasma-desktop-console"));
+         match.setCategoryRelevance(QueryMatch::CategoryRelevance::Highest);
+-        match.setIconName(QStringLiteral("kwin"));
+-        match.setText(i18n("Open KWin interactive console"));
++        match.setIconName(KWindowSystem::isPlatformX11() ? QStringLiteral("kwin") : QStringLiteral("nwin"));
++        match.setText((KWindowSystem::isPlatformX11() ? i18n("Open KWin interactive console") : i18n("Open NWin interactive console")));
+         match.setRelevance(1.0);
+         context.addMatch(match);
+     }
+@@ -57,7 +59,7 @@ void PlasmaDesktopRunner::match(RunnerContext &context)
+ void PlasmaDesktopRunner::run(const RunnerContext &context, const QueryMatch & /*match*/)
+ {
+     bool showPlasmaConsole = context.query().startsWith(m_desktopConsoleKeyword, Qt::CaseInsensitive);
+-    QStringList args{showPlasmaConsole ? QStringLiteral("--plasma") : QStringLiteral("--kwin")};
++    QStringList args{showPlasmaConsole ? QStringLiteral("--plasma") : QStringLiteral("--windowmanager")};
+     auto job = new KIO::CommandLauncherJob(QStringLiteral("plasma-interactiveconsole"), args);
+     job->start();
+ }
+diff --git a/runners/plasma-desktop/plasma-desktop-runner.h b/runners/plasma-desktop/plasma-desktop-runner.h
+index 1d4aa43..149a36f 100644
+--- a/runners/plasma-desktop/plasma-desktop-runner.h
++++ b/runners/plasma-desktop/plasma-desktop-runner.h
+@@ -26,5 +26,5 @@ public:
+ 
+ private:
+     const QString m_desktopConsoleKeyword;
+-    const QString m_kwinConsoleKeyword;
++    const QString m_compositorConsoleKeyword;
+ };

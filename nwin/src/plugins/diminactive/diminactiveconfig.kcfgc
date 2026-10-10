@@ -1,0 +1,5 @@
+File=diminactive.kcfg
+ClassName=DimInactiveConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

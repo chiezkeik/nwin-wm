@@ -1,0 +1,5 @@
+File=magiclamp.kcfg
+ClassName=MagicLampConfig
+NameSpace=NWin
+Singleton=true
+Mutators=true

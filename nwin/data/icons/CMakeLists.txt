@@ -1,0 +1,11 @@
+ecm_install_icons(
+    ICONS
+        16-apps-nwin.png
+        32-apps-nwin.png
+        48-apps-nwin.png
+        sc-apps-nwin.svgz
+    DESTINATION
+        ${KDE_INSTALL_ICONDIR}
+    THEME
+        hicolor
+)
